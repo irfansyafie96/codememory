@@ -229,7 +229,7 @@ $PYTHON_BIN -m mkdocs serve -a 127.0.0.1:8000
     mcpServers: {
       codememory: {
         command: "npx",
-        args: ["-y", "@irfansyafie/codememory", "--dir", targetDir]
+        args: ["-y", "@irfansyafie/codememory@latest", "--dir", targetDir]
       }
     }
   }, null, 2));
@@ -237,7 +237,7 @@ $PYTHON_BIN -m mkdocs serve -a 127.0.0.1:8000
   console.log(JSON.stringify({
     codememory: {
       type: "local",
-      command: ["npx", "-y", "@irfansyafie/codememory", "--dir", targetDir],
+      command: ["npx", "-y", "@irfansyafie/codememory@latest", "--dir", targetDir],
       enabled: true
     }
   }, null, 2));

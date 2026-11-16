@@ -38,9 +38,9 @@ Initialize CodeMemory in your repository in seconds using `npx`:
 
 ```bash
 # Initialize via NPM:
-npx @irfansyafie/codememory init --type ticket    # For maintenance & bug-fixing projects
-npx @irfansyafie/codememory init --type project   # For greenfield feature development
-npx @irfansyafie/codememory init --type hybrid    # Full suite
+npx @irfansyafie/codememory@latest init --type ticket    # For maintenance & bug-fixing projects
+npx @irfansyafie/codememory@latest init --type project   # For greenfield feature development
+npx @irfansyafie/codememory@latest init --type hybrid    # Full suite
 
 # Or direct from GitHub (no installation needed):
 npx -y github:irfansyafie96/codememory init --type ticket
@@ -91,7 +91,7 @@ Add this to your `mcp_config.json`:
   "mcpServers": {
     "codememory": {
       "command": "npx",
-      "args": ["-y", "@irfansyafie/codememory", "--dir", "."]
+      "args": ["-y", "@irfansyafie/codememory@latest", "--dir", "."]
     }
   }
 }
@@ -102,7 +102,7 @@ Add this to your `mcp_config.json`:
 2. Click **+ Add New MCP Server**.
 3. Name: `codememory`
 4. Type: `command`
-5. Command: `npx -y @irfansyafie/codememory --dir .`
+5. Command: `npx -y @irfansyafie/codememory@latest --dir .`
 
 ### OpenCode
 Add this to your OpenCode configuration (`opencode.json`):
@@ -114,7 +114,7 @@ Add this to your OpenCode configuration (`opencode.json`):
       "command": [
         "npx",
         "-y",
-        "@irfansyafie/codememory",
+        "@irfansyafie/codememory@latest",
         "--dir",
         "/absolute/path/to/codememory"
       ],
