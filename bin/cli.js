@@ -196,19 +196,19 @@ if "%PY_CMD%"=="" (
 )
 
 :: 2. Check if mkdocs is installed, auto-install via "%PY_CMD% -m pip"
-%PY_CMD% -m mkdocs --version >nul 2>&1
+"%PY_CMD%" -m mkdocs --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
     echo [CodeMemory] 'mkdocs-material' is not installed.
-    echo [CodeMemory] Installing documentation dependencies automatically via %PY_CMD% -m pip...
+    echo [CodeMemory] Installing documentation dependencies automatically via "%PY_CMD%" -m pip...
     echo.
     set "PYYAML_FORCE_LIBYAML=0"
-    %PY_CMD% -m pip uninstall -y pyyaml-pure >nul 2>&1
-    %PY_CMD% -m pip install mkdocs-material
+    "%PY_CMD%" -m pip uninstall -y pyyaml-pure >nul 2>&1
+    "%PY_CMD%" -m pip install mkdocs-material
 )
 
 :: 3. Sync notes and launch web viewer
-%PY_CMD% sync.py
+"%PY_CMD%" sync.py
 if %errorlevel% neq 0 (
     echo.
     echo [CodeMemory Error] Sync script failed.
@@ -217,7 +217,7 @@ if %errorlevel% neq 0 (
 )
 
 start http://localhost:8000
-%PY_CMD% -m mkdocs serve -a 127.0.0.1:8000
+"%PY_CMD%" -m mkdocs serve -a 127.0.0.1:8000
 if %errorlevel% neq 0 (
     echo.
     echo ======================================================================
