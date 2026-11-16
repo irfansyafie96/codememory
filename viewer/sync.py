@@ -180,18 +180,17 @@ def main():
         import mkdocs
     except ImportError:
         print("\n[CodeMemory] 'mkdocs-material' is not installed in your Python environment.")
-        print("[CodeMemory] Installing automatically via pip...")
+        print("[CodeMemory] Installing automatically via pip (pure-Python mode)...")
         import subprocess
+        import os
+        env = os.environ.copy()
+        env["PYYAML_FORCE_LIBYAML"] = "0"
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "mkdocs-material"])
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "mkdocs-material"], env=env)
             print("[CodeMemory] Successfully installed mkdocs-material!\n")
         except Exception as e:
-            print(f"\n[CodeMemory Error] Could not install mkdocs-material: {e}")
-            if sys.version_info >= (3, 15):
-                print("This failure is due to Python 3.15 lacking pre-built wheels.")
-                print("Please switch to a stable Python release (3.12, 3.13, or 3.14).\n")
-            else:
-                print("Please run manually: pip install mkdocs-material\n")
+            print(f"\n[CodeMemory Error] Could not install mkdocs-material automatically: {e}")
+            print("Try running manually: pip install pyyaml-pure && pip install mkdocs-material\n")
 
 if __name__ == "__main__":
     main()

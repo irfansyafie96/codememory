@@ -149,29 +149,46 @@ async function runInit() {
   const batScript = `@echo off
 cd /d "%~dp0\\.viewer"
 
-:: 1. Detect Python (try 'python', then fallback to Windows Python launcher 'py')
+:: 1. Detect Real Python (bypass Microsoft Store 0KB dummy alias)
 set "PY_CMD="
-python --version >nul 2>&1
-if %errorlevel% equ 0 (
-    set "PY_CMD=python"
-) else (
-    py --version >nul 2>&1
-    if %errorlevel% equ 0 (
-        set "PY_CMD=py"
+
+:: Check 'py' launcher
+py -c "import sys" >nul 2>&1
+if %errorlevel% equ 0 set "PY_CMD=py"
+
+:: Check 'python' (verify it can actually execute code, not the WindowsApps dummy)
+if "%PY_CMD%"=="" (
+    python -c "import sys" >nul 2>&1
+    if %errorlevel% equ 0 set "PY_CMD=python"
+)
+
+:: Auto-detect common Python installation paths if PATH is missing
+if "%PY_CMD%"=="" (
+    for /d %%D in ("%LOCALAPPDATA%\\Python\\pythoncore*") do (
+        if exist "%%D\\python.exe" set "PY_CMD=%%D\\python.exe"
+    )
+)
+if "%PY_CMD%"=="" (
+    for /d %%D in ("%LOCALAPPDATA%\\Programs\\Python\\Python*") do (
+        if exist "%%D\\python.exe" set "PY_CMD=%%D\\python.exe"
+    )
+)
+if "%PY_CMD%"=="" (
+    for /d %%D in ("C:\\Python*") do (
+        if exist "%%D\\python.exe" set "PY_CMD=%%D\\python.exe"
     )
 )
 
 if "%PY_CMD%"=="" (
     echo.
     echo ======================================================================
-    echo [CodeMemory Error] Python was not detected in your PATH.
+    echo [CodeMemory Error] Real Python was not found in your PATH.
+    echo Windows is executing the dummy Microsoft Store shortcut.
     echo.
-    echo If you just installed Python:
-    echo 1. Close and re-open this window (or double-click open-book.bat directly from File Explorer).
-    echo 2. When installing Python from python.org, ensure you checked the box:
-    echo    "[x] Add python.exe to PATH"
-    echo.
-    echo Download: https://www.python.org/downloads/
+    echo HOW TO FIX:
+    echo 1. Open Windows Settings -^> Apps -^> Advanced app settings -^> App execution aliases
+    echo    Turn OFF "App Installer (python.exe)" and "App Installer (python3.exe)"
+    echo 2. Re-open terminal or reinstall Python with "[x] Add python.exe to PATH"
     echo ======================================================================
     echo.
     pause
@@ -185,17 +202,12 @@ if %errorlevel% neq 0 (
     echo [CodeMemory] 'mkdocs-material' is not installed.
     echo [CodeMemory] Installing documentation dependencies automatically via %PY_CMD% -m pip...
     echo.
+    set "PYYAML_FORCE_LIBYAML=0"
     %PY_CMD% -m pip install mkdocs-material
     if %errorlevel% neq 0 (
-        echo.
-        echo ======================================================================
-        echo [CodeMemory Error] Failed to auto-install mkdocs-material.
-        echo Please open your terminal and run manually:
-        echo    %PY_CMD% -m pip install mkdocs-material
-        echo ======================================================================
-        echo.
-        pause
-        exit /b 1
+        echo [CodeMemory] Trying fallback pure-python YAML install...
+        %PY_CMD% -m pip install pyyaml-pure
+        %PY_CMD% -m pip install mkdocs-material --no-build-isolation
     )
 )
 
@@ -224,33 +236,64 @@ if %errorlevel% neq 0 (
   const shScript = `#!/usr/bin/env bash
 cd "$(dirname "$0")/.viewer"
 
-# 1. Determine Python binary
-PYTHON_BIN="python3"
-if ! command -v python3 &> /dev/null; then
-  if command -v python &> /dev/null; then
-    PYTHON_BIN="python"
-  else
-    echo "[CodeMemory Error] Python is not installed or not in your PATH."
-    echo "Please install Python 3 to view the documentation book."
-    exit 1
-  fi
+# 1. Detect Real Python (filter out WindowsApps dummy stub)
+PYTHON_BIN=""
+
+if command -v py > /dev/null 2>&1 && py -c "import sys" > /dev/null 2>&1; then
+  PYTHON_BIN="py"
+elif command -v python3 > /dev/null 2>&1 && python3 -c "import sys" > /dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python > /dev/null 2>&1 && python -c "import sys" > /dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  # Direct scan in Windows AppData (for Git Bash on Windows)
+  for cand in "$LOCALAPPDATA/Python/pythoncore"*/python.exe "$LOCALAPPDATA/Programs/Python/Python"*/python.exe /c/Python*/python.exe; do
+    if [ -f "$cand" ]; then
+      PYTHON_BIN="$cand"
+      break
+    fi
+  done
 fi
 
-# 2. Check and auto-install mkdocs-material if missing
-if ! $PYTHON_BIN -m mkdocs --version &> /dev/null; then
+if [ -z "$PYTHON_BIN" ]; then
+  echo ""
+  echo "======================================================================"
+  echo "[CodeMemory Error] Real Python was not found in PATH."
+  echo "Windows is intercepting with the dummy Microsoft Store shortcut."
+  echo ""
+  echo "HOW TO FIX:"
+  echo "1. In Windows: Settings -> Apps -> Advanced app settings -> App execution aliases"
+  echo "   Turn OFF 'python.exe' and 'python3.exe'."
+  echo "2. Re-open terminal or reinstall Python with '[x] Add python.exe to PATH'."
+  echo "======================================================================"
+  echo ""
+  read -p "Press Enter to exit..."
+  exit 1
+fi
+
+# 2. Check and auto-install mkdocs-material (force pure-Python mode)
+export PYYAML_FORCE_LIBYAML=0
+if ! "$PYTHON_BIN" -m mkdocs --version &> /dev/null; then
   echo "[CodeMemory] 'mkdocs-material' is not installed."
-  echo "[CodeMemory] Installing documentation dependencies automatically via $PYTHON_BIN -m pip..."
-  $PYTHON_BIN -m pip install mkdocs-material
+  echo "[CodeMemory] Installing documentation dependencies automatically via pip..."
+  "$PYTHON_BIN" -m pip install mkdocs-material || ( "$PYTHON_BIN" -m pip install pyyaml-pure && "$PYTHON_BIN" -m pip install mkdocs-material --no-build-isolation )
 fi
 
 # 3. Sync notes and launch web viewer
-$PYTHON_BIN sync.py
+"$PYTHON_BIN" sync.py
 if command -v xdg-open > /dev/null; then
   xdg-open http://localhost:8000 &
 elif command -v open > /dev/null; then
   open http://localhost:8000 &
+elif command -v start > /dev/null; then
+  start http://localhost:8000 &
 fi
-$PYTHON_BIN -m mkdocs serve -a 127.0.0.1:8000
+"$PYTHON_BIN" -m mkdocs serve -a 127.0.0.1:8000
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "[CodeMemory] Viewer encountered an error and stopped."
+  read -p "Press Enter to exit..."
+fi
 `;
   try {
     fs.writeFileSync(path.join(targetDir, "open-book.sh"), shScript, { encoding: "utf-8", mode: 0o755 });
