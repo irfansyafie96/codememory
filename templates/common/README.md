@@ -47,7 +47,7 @@ To connect your AI assistant directly to this engineering memory, register the M
   "mcpServers": {
     "codememory": {
       "command": "npx",
-      "args": ["-y", "codememory", "--dir", "."]
+      "args": ["-y", "@irfansyafie/codememory", "--dir", "."]
     }
   }
 }

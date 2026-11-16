@@ -1,5 +1,5 @@
 {
-  "name": "codememory",
+  "name": "@irfansyafie/codememory",
   "version": "1.0.0",
   "description": "Local-first, AI-native engineering memory & MCP server for tickets, architecture decisions, and safe production patches.",
   "type": "module",

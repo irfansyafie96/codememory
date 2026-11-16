@@ -92,7 +92,7 @@ if (command === "init") {
     mcpServers: {
       codememory: {
         command: "npx",
-        args: ["-y", "codememory", "--dir", targetDir]
+        args: ["-y", "@irfansyafie/codememory", "--dir", targetDir]
       }
     }
   }, null, 2));

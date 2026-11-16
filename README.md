@@ -37,13 +37,13 @@ Stop solving the same bugs twice. Give your AI coding assistants (Antigravity, C
 Initialize CodeMemory in your repository in seconds using `npx`:
 
 ```bash
-# Direct from GitHub (no installation needed):
-npx -y github:irfansyafie96/codememory init --type ticket
+# Initialize via NPM:
+npx @irfansyafie/codememory init --type ticket    # For maintenance & bug-fixing projects
+npx @irfansyafie/codememory init --type project   # For greenfield feature development
+npx @irfansyafie/codememory init --type hybrid    # Full suite
 
-# Or once installed/published via NPM:
-npx codememory init --type ticket    # For maintenance & bug-fixing projects
-npx codememory init --type project   # For greenfield feature development
-npx codememory init --type hybrid    # Full suite
+# Or direct from GitHub (no installation needed):
+npx -y github:irfansyafie96/codememory init --type ticket
 ```
 
 ---
@@ -91,7 +91,7 @@ Add this to your `mcp_config.json`:
   "mcpServers": {
     "codememory": {
       "command": "npx",
-      "args": ["-y", "codememory", "--dir", "."]
+      "args": ["-y", "@irfansyafie/codememory", "--dir", "."]
     }
   }
 }
@@ -102,7 +102,7 @@ Add this to your `mcp_config.json`:
 2. Click **+ Add New MCP Server**.
 3. Name: `codememory`
 4. Type: `command`
-5. Command: `npx -y codememory --dir .`
+5. Command: `npx -y @irfansyafie/codememory --dir .`
 
 ---
 
