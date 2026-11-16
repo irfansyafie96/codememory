@@ -166,31 +166,24 @@ def main():
         f.write(final_yml)
 
     print(f"[OK] Successfully synced docs and generated {out_yml}")
-    import sys
-    if sys.version_info >= (3, 15):
-        print("\n======================================================================")
-        print("⚠️  [CodeMemory Warning] You are running Python 3.15+ (experimental/preview).")
-        print("Pre-compiled binary wheels (like PyYAML) are not published for Python 3.15 yet,")
-        print("which requires Microsoft Visual C++ to compile from source.")
-        print("👉 RECOMMENDED FIX: Install Python 3.12, 3.13, or 3.14 (Stable) from:")
-        print("   https://www.python.org/downloads/")
-        print("======================================================================\n")
-
     try:
         import mkdocs
     except ImportError:
         print("\n[CodeMemory] 'mkdocs-material' is not installed in your Python environment.")
-        print("[CodeMemory] Installing automatically via pip (pure-Python mode)...")
+        print("[CodeMemory] Installing automatically via pip...")
         import subprocess
         import os
+        import sys
         env = os.environ.copy()
         env["PYYAML_FORCE_LIBYAML"] = "0"
         try:
+            # Ensure pyyaml-pure is not conflicting
+            subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "pyyaml-pure"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.check_call([sys.executable, "-m", "pip", "install", "mkdocs-material"], env=env)
             print("[CodeMemory] Successfully installed mkdocs-material!\n")
         except Exception as e:
-            print(f"\n[CodeMemory Error] Could not install mkdocs-material automatically: {e}")
-            print("Try running manually: pip install pyyaml-pure && pip install mkdocs-material\n")
+            print(f"\n[CodeMemory Error] Could not install mkdocs-material: {e}")
+            print("Please run manually: pip install mkdocs-material\n")
 
 if __name__ == "__main__":
     main()

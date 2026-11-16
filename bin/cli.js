@@ -203,12 +203,8 @@ if %errorlevel% neq 0 (
     echo [CodeMemory] Installing documentation dependencies automatically via %PY_CMD% -m pip...
     echo.
     set "PYYAML_FORCE_LIBYAML=0"
+    %PY_CMD% -m pip uninstall -y pyyaml-pure >nul 2>&1
     %PY_CMD% -m pip install mkdocs-material
-    if %errorlevel% neq 0 (
-        echo [CodeMemory] Trying fallback pure-python YAML install...
-        %PY_CMD% -m pip install pyyaml-pure
-        %PY_CMD% -m pip install mkdocs-material --no-build-isolation
-    )
 )
 
 :: 3. Sync notes and launch web viewer
@@ -276,7 +272,8 @@ export PYYAML_FORCE_LIBYAML=0
 if ! "$PYTHON_BIN" -m mkdocs --version &> /dev/null; then
   echo "[CodeMemory] 'mkdocs-material' is not installed."
   echo "[CodeMemory] Installing documentation dependencies automatically via pip..."
-  "$PYTHON_BIN" -m pip install mkdocs-material || ( "$PYTHON_BIN" -m pip install pyyaml-pure && "$PYTHON_BIN" -m pip install mkdocs-material --no-build-isolation )
+  "$PYTHON_BIN" -m pip uninstall -y pyyaml-pure > /dev/null 2>&1
+  "$PYTHON_BIN" -m pip install mkdocs-material
 fi
 
 # 3. Sync notes and launch web viewer
