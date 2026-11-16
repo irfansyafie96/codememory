@@ -1,6 +1,6 @@
 {
   "name": "@irfansyafie/codememory",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Local-first, AI-native engineering memory & MCP server for tickets, architecture decisions, and safe production patches.",
   "type": "module",
   "files": [

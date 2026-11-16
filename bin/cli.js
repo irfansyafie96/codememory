@@ -149,33 +149,60 @@ async function runInit() {
   const batScript = `@echo off
 cd /d "%~dp0\\.viewer"
 
-:: 1. Check if Python is installed
+:: 1. Detect Python (try 'python', then fallback to Windows Python launcher 'py')
+set "PY_CMD="
 python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [CodeMemory Error] Python is not installed or not in your PATH.
-    echo Please install Python 3 from https://www.python.org/downloads/ to view the documentation book.
+if %errorlevel% equ 0 (
+    set "PY_CMD=python"
+) else (
+    py --version >nul 2>&1
+    if %errorlevel% equ 0 (
+        set "PY_CMD=py"
+    )
+)
+
+if "%PY_CMD%"=="" (
+    echo.
+    echo ======================================================================
+    echo [CodeMemory Error] Python was not detected in your PATH.
+    echo.
+    echo If you just installed Python:
+    echo 1. Close and re-open this window (or double-click open-book.bat directly from File Explorer).
+    echo 2. When installing Python from python.org, ensure you checked the box:
+    echo    "[x] Add python.exe to PATH"
+    echo.
+    echo Download: https://www.python.org/downloads/
+    echo ======================================================================
+    echo.
     pause
     exit /b 1
 )
 
-:: 2. Check if mkdocs is installed, auto-install if missing
-python -m mkdocs --version >nul 2>&1
+:: 2. Check if mkdocs is installed, auto-install via "%PY_CMD% -m pip"
+%PY_CMD% -m mkdocs --version >nul 2>&1
 if %errorlevel% neq 0 (
+    echo.
     echo [CodeMemory] 'mkdocs-material' is not installed.
-    echo [CodeMemory] Installing documentation dependencies automatically via pip...
-    pip install mkdocs-material
+    echo [CodeMemory] Installing documentation dependencies automatically via %PY_CMD% -m pip...
+    echo.
+    %PY_CMD% -m pip install mkdocs-material
     if %errorlevel% neq 0 (
+        echo.
+        echo ======================================================================
         echo [CodeMemory Error] Failed to auto-install mkdocs-material.
-        echo Please run manually: pip install mkdocs-material
+        echo Please open your terminal and run manually:
+        echo    %PY_CMD% -m pip install mkdocs-material
+        echo ======================================================================
+        echo.
         pause
         exit /b 1
     )
 )
 
 :: 3. Sync notes and launch web viewer
-python sync.py
+%PY_CMD% sync.py
 start http://localhost:8000
-python -m mkdocs serve -a 127.0.0.1:8000
+%PY_CMD% -m mkdocs serve -a 127.0.0.1:8000
 `;
   fs.writeFileSync(path.join(targetDir, "open-book.bat"), batScript, "utf-8");
 
@@ -197,8 +224,8 @@ fi
 # 2. Check and auto-install mkdocs-material if missing
 if ! $PYTHON_BIN -m mkdocs --version &> /dev/null; then
   echo "[CodeMemory] 'mkdocs-material' is not installed."
-  echo "[CodeMemory] Installing documentation dependencies automatically via pip..."
-  pip install mkdocs-material 2>/dev/null || pip3 install mkdocs-material
+  echo "[CodeMemory] Installing documentation dependencies automatically via $PYTHON_BIN -m pip..."
+  $PYTHON_BIN -m pip install mkdocs-material
 fi
 
 # 3. Sync notes and launch web viewer
