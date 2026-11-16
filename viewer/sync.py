@@ -169,8 +169,16 @@ def main():
     try:
         import mkdocs
     except ImportError:
-        print("\n[NOTE] 'mkdocs' is not installed in your Python environment.")
-        print("       Install it with: pip install mkdocs-material\n")
+        print("\n[CodeMemory] 'mkdocs-material' is not installed in your Python environment.")
+        print("[CodeMemory] Installing automatically via pip...")
+        import subprocess
+        import sys
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "mkdocs-material"])
+            print("[CodeMemory] Successfully installed mkdocs-material!\n")
+        except Exception as e:
+            print(f"[CodeMemory Note] Could not auto-install mkdocs-material: {e}")
+            print("Please run manually: pip install mkdocs-material\n")
 
 if __name__ == "__main__":
     main()

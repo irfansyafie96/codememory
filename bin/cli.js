@@ -145,10 +145,70 @@ async function runInit() {
   copyTemplate(path.join(ROOT_DIR, "viewer", "mkdocs.base.yml"), path.join(viewerDst, "mkdocs.base.yml"));
   copyTemplate(path.join(ROOT_DIR, "viewer", "sync.py"), path.join(viewerDst, "sync.py"));
 
-  const batScript = `@echo off\ncd /d "%~dp0\\.viewer"\npython sync.py\nstart http://localhost:8000\npython -m mkdocs serve -a 127.0.0.1:8000\n`;
+  const batScript = `@echo off
+cd /d "%~dp0\\.viewer"
+
+:: 1. Check if Python is installed
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [CodeMemory Error] Python is not installed or not in your PATH.
+    echo Please install Python 3 from https://www.python.org/downloads/ to view the documentation book.
+    pause
+    exit /b 1
+)
+
+:: 2. Check if mkdocs is installed, auto-install if missing
+python -m mkdocs --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [CodeMemory] 'mkdocs-material' is not installed.
+    echo [CodeMemory] Installing documentation dependencies automatically via pip...
+    pip install mkdocs-material
+    if %errorlevel% neq 0 (
+        echo [CodeMemory Error] Failed to auto-install mkdocs-material.
+        echo Please run manually: pip install mkdocs-material
+        pause
+        exit /b 1
+    )
+)
+
+:: 3. Sync notes and launch web viewer
+python sync.py
+start http://localhost:8000
+python -m mkdocs serve -a 127.0.0.1:8000
+`;
   fs.writeFileSync(path.join(targetDir, "open-book.bat"), batScript, "utf-8");
 
-  const shScript = `#!/usr/bin/env bash\ncd "$(dirname "$0")/.viewer"\npython3 sync.py 2>/dev/null || python sync.py\nif command -v xdg-open > /dev/null; then\n  xdg-open http://localhost:8000 &\nelif command -v open > /dev/null; then\n  open http://localhost:8000 &\nfi\npython3 -m mkdocs serve -a 127.0.0.1:8000 2>/dev/null || python -m mkdocs serve -a 127.0.0.1:8000\n`;
+  const shScript = `#!/usr/bin/env bash
+cd "$(dirname "$0")/.viewer"
+
+# 1. Determine Python binary
+PYTHON_BIN="python3"
+if ! command -v python3 &> /dev/null; then
+  if command -v python &> /dev/null; then
+    PYTHON_BIN="python"
+  else
+    echo "[CodeMemory Error] Python is not installed or not in your PATH."
+    echo "Please install Python 3 to view the documentation book."
+    exit 1
+  fi
+fi
+
+# 2. Check and auto-install mkdocs-material if missing
+if ! $PYTHON_BIN -m mkdocs --version &> /dev/null; then
+  echo "[CodeMemory] 'mkdocs-material' is not installed."
+  echo "[CodeMemory] Installing documentation dependencies automatically via pip..."
+  pip install mkdocs-material 2>/dev/null || pip3 install mkdocs-material
+fi
+
+# 3. Sync notes and launch web viewer
+$PYTHON_BIN sync.py
+if command -v xdg-open > /dev/null; then
+  xdg-open http://localhost:8000 &
+elif command -v open > /dev/null; then
+  open http://localhost:8000 &
+fi
+$PYTHON_BIN -m mkdocs serve -a 127.0.0.1:8000
+`;
   try {
     fs.writeFileSync(path.join(targetDir, "open-book.sh"), shScript, { encoding: "utf-8", mode: 0o755 });
   } catch {
@@ -161,7 +221,7 @@ async function runInit() {
   console.log(`=======================================================`);
   console.log(`1. 📖 Browse Knowledge Base in Interactive Reader:`);
   console.log(`   - Windows: double click 'open-book.bat' in ${path.basename(targetDir)}`);
-  console.log(`   - Mac/Linux: run './open-book.sh' (requires: pip install mkdocs-material)`);
+  console.log(`   - Mac/Linux: run './open-book.sh' (auto-installs viewer dependencies on first run)`);
   console.log(`\n2. 🤖 Connect AI Assistant:`);
   console.log(`   - For Cursor / Antigravity / Claude Desktop (mcp_config.json):`);
   console.log(JSON.stringify({

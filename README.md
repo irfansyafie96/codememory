@@ -185,10 +185,10 @@ SELECT id, status FROM orders WHERE id = 'ORD-100234';
 
 ## 📖 Interactive Book Viewer
 
-CodeMemory comes with an interactive, searchable documentation reader (requires `pip install mkdocs-material`):
+CodeMemory comes with an interactive, searchable documentation reader. The launcher automatically installs `mkdocs-material` on its first run if it isn't already installed!
 
 ```bash
-# On Windows:
+# On Windows (double-click or run):
 open-book.bat
 
 # On macOS / Linux:
