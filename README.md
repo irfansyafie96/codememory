@@ -104,6 +104,27 @@ Add this to your `mcp_config.json`:
 4. Type: `command`
 5. Command: `npx -y @irfansyafie/codememory --dir .`
 
+### OpenCode
+Add this to your OpenCode configuration (`opencode.json`):
+```json
+{
+  "mcp": {
+    "codememory": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@irfansyafie/codememory",
+        "--dir",
+        "/absolute/path/to/codememory"
+      ],
+      "enabled": true
+    }
+  }
+}
+```
+*(On Windows, if needed, you can use `"npx.cmd"` instead of `"npx"`).*
+
 ---
 
 ## 🛠️ MCP Tools Reference

@@ -162,14 +162,22 @@ async function runInit() {
   console.log(`1. 📖 Browse Knowledge Base in Interactive Reader:`);
   console.log(`   - Windows: double click 'open-book.bat' in ${path.basename(targetDir)}`);
   console.log(`   - Mac/Linux: run './open-book.sh' (requires: pip install mkdocs-material)`);
-  console.log(`\n2. 🤖 Connect AI Assistant (Cursor / Antigravity / Claude):`);
-  console.log(`   Add this to your MCP configuration:`);
+  console.log(`\n2. 🤖 Connect AI Assistant:`);
+  console.log(`   - For Cursor / Antigravity / Claude Desktop (mcp_config.json):`);
   console.log(JSON.stringify({
     mcpServers: {
       codememory: {
         command: "npx",
         args: ["-y", "@irfansyafie/codememory", "--dir", targetDir]
       }
+    }
+  }, null, 2));
+  console.log(`\n   - For OpenCode (opencode.json):`);
+  console.log(JSON.stringify({
+    codememory: {
+      type: "local",
+      command: ["npx", "-y", "@irfansyafie/codememory", "--dir", targetDir],
+      enabled: true
     }
   }, null, 2));
   console.log(`\n3. 💡 Using with your AI:`);
@@ -184,6 +192,10 @@ async function runInit() {
 
 if (command === "init") {
   runInit().catch((err) => {
+    if (err && (err.code === "ABORT_ERR" || err.name === "AbortError")) {
+      console.log("\nSetup cancelled.");
+      process.exit(0);
+    }
     console.error("Initialization failed:", err);
     process.exit(1);
   });

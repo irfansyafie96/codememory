@@ -42,6 +42,7 @@ Then open `http://localhost:8000` in your browser.
 
 To connect your AI assistant directly to this engineering memory, register the MCP server:
 
+### For Cursor / Antigravity / Claude Desktop:
 ```json
 {
   "mcpServers": {
@@ -52,6 +53,18 @@ To connect your AI assistant directly to this engineering memory, register the M
   }
 }
 ```
+
+### For OpenCode:
+```json
+{
+  "codememory": {
+    "type": "local",
+    "command": ["npx", "-y", "@irfansyafie/codememory", "--dir", "."],
+    "enabled": true
+  }
+}
+```
+
 When debugging, ask your AI:
 > *"Check memory for duplicate sequence errors"*
 > *"Look up error ORA-00001"*
