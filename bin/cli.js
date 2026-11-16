@@ -140,10 +140,11 @@ async function runInit() {
   copyTemplate(path.join(skillsDir, "claude", "CLAUDE.md"), path.join(targetDir, "CLAUDE.md"));
   copyTemplate(path.join(skillsDir, "antigravity", "SKILL.md"), path.join(targetDir, "skills", "SKILL.md"));
 
-  // 6. Copy viewer assets & launchers
+  // 6. Copy viewer assets & launchers (always update viewer scripts to latest version)
   const viewerDst = path.join(targetDir, ".viewer");
-  copyTemplate(path.join(ROOT_DIR, "viewer", "mkdocs.base.yml"), path.join(viewerDst, "mkdocs.base.yml"));
-  copyTemplate(path.join(ROOT_DIR, "viewer", "sync.py"), path.join(viewerDst, "sync.py"));
+  fs.mkdirSync(viewerDst, { recursive: true });
+  fs.copyFileSync(path.join(ROOT_DIR, "viewer", "mkdocs.base.yml"), path.join(viewerDst, "mkdocs.base.yml"));
+  fs.copyFileSync(path.join(ROOT_DIR, "viewer", "sync.py"), path.join(viewerDst, "sync.py"));
 
   const batScript = `@echo off
 cd /d "%~dp0\\.viewer"
