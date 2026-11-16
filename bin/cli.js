@@ -71,14 +71,23 @@ if (command === "init") {
   copyTemplate(path.join(ROOT_DIR, "viewer", "mkdocs.base.yml"), path.join(viewerDst, "mkdocs.base.yml"));
   copyTemplate(path.join(ROOT_DIR, "viewer", "sync.py"), path.join(viewerDst, "sync.py"));
 
-  // Batch launcher for Windows
+  // Launchers for Windows & Mac/Linux
   const batScript = `@echo off\ncd /d "%~dp0\\.viewer"\npython sync.py\nstart http://localhost:8000\npython -m mkdocs serve -a 127.0.0.1:8000\n`;
   fs.writeFileSync(path.join(targetDir, "open-book.bat"), batScript, "utf-8");
 
+  const shScript = `#!/usr/bin/env bash\ncd "$(dirname "$0")/.viewer"\npython3 sync.py 2>/dev/null || python sync.py\nif command -v xdg-open > /dev/null; then\n  xdg-open http://localhost:8000 &\nelif command -v open > /dev/null; then\n  open http://localhost:8000 &\nfi\npython3 -m mkdocs serve -a 127.0.0.1:8000 2>/dev/null || python -m mkdocs serve -a 127.0.0.1:8000\n`;
+  try {
+    fs.writeFileSync(path.join(targetDir, "open-book.sh"), shScript, { encoding: "utf-8", mode: 0o755 });
+  } catch {
+    fs.writeFileSync(path.join(targetDir, "open-book.sh"), shScript, "utf-8");
+  }
+
   console.log(`[OK] Successfully initialized CodeMemory (${type} mode)!`);
   console.log(`\nNext steps:`);
-  console.log(`1. Double click 'open-book.bat' to view your knowledge base.`);
-  console.log(`2. Add this MCP server to your AI assistant (mcp_config.json):`);
+  console.log(`1. View your knowledge base:`);
+  console.log(`   - Windows: double click 'open-book.bat'`);
+  console.log(`   - Mac/Linux: run './open-book.sh' (requires: pip install mkdocs-material)`);
+  console.log(`\n2. Add this MCP server to your AI assistant (mcp_config.json):`);
   console.log(JSON.stringify({
     mcpServers: {
       codememory: {

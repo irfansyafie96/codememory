@@ -1,0 +1,13 @@
+# Source control & tests
+.git
+.github
+*.log
+.DS_Store
+
+# Virtual environments & cache
+__pycache__/
+*.pyc
+
+# Local workspace files
+.idea/
+.vscode/

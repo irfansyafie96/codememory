@@ -166,6 +166,11 @@ def main():
         f.write(final_yml)
 
     print(f"[OK] Successfully synced docs and generated {out_yml}")
+    try:
+        import mkdocs
+    except ImportError:
+        print("\n[NOTE] 'mkdocs' is not installed in your Python environment.")
+        print("       Install it with: pip install mkdocs-material\n")
 
 if __name__ == "__main__":
     main()

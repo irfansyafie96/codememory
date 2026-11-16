@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "description": "Local-first, AI-native engineering memory & MCP server for tickets, architecture decisions, and safe production patches.",
   "type": "module",
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "viewer",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "codememory": "./bin/cli.js"
   },

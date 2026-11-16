@@ -37,14 +37,13 @@ Stop solving the same bugs twice. Give your AI coding assistants (Antigravity, C
 Initialize CodeMemory in your repository in seconds using `npx`:
 
 ```bash
-# 1. For maintenance, operational support & bug-fixing projects:
-npx codememory init --type ticket
+# Direct from GitHub (no installation needed):
+npx -y github:irfansyafie96/codememory init --type ticket
 
-# 2. For greenfield feature development & product engineering:
-npx codememory init --type project
-
-# 3. For complete teams combining features, tickets & architecture:
-npx codememory init --type hybrid
+# Or once installed/published via NPM:
+npx codememory init --type ticket    # For maintenance & bug-fixing projects
+npx codememory init --type project   # For greenfield feature development
+npx codememory init --type hybrid    # Full suite
 ```
 
 ---
@@ -165,13 +164,16 @@ SELECT id, status FROM orders WHERE id = 'ORD-100234';
 
 ## 📖 Interactive Book Viewer
 
-CodeMemory comes with an interactive, searchable documentation reader:
+CodeMemory comes with an interactive, searchable documentation reader (requires `pip install mkdocs-material`):
 
 ```bash
 # On Windows:
 open-book.bat
 
-# Or using Python:
+# On macOS / Linux:
+chmod +x open-book.sh && ./open-book.sh
+
+# Or manually:
 cd .viewer
 python sync.py
 python -m mkdocs serve
