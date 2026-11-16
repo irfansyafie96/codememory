@@ -10,10 +10,12 @@
     "viewer",
     "skills",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "!**/__pycache__",
+    "!**/*.pyc"
   ],
   "bin": {
-    "codememory": "./bin/cli.js"
+    "codememory": "bin/cli.js"
   },
   "main": "./src/index.js",
   "scripts": {
@@ -37,7 +39,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/irfansyafie96/codememory.git"
+    "url": "git+https://github.com/irfansyafie96/codememory.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
