@@ -166,19 +166,32 @@ def main():
         f.write(final_yml)
 
     print(f"[OK] Successfully synced docs and generated {out_yml}")
+    import sys
+    if sys.version_info >= (3, 15):
+        print("\n======================================================================")
+        print("⚠️  [CodeMemory Warning] You are running Python 3.15+ (experimental/preview).")
+        print("Pre-compiled binary wheels (like PyYAML) are not published for Python 3.15 yet,")
+        print("which requires Microsoft Visual C++ to compile from source.")
+        print("👉 RECOMMENDED FIX: Install Python 3.12, 3.13, or 3.14 (Stable) from:")
+        print("   https://www.python.org/downloads/")
+        print("======================================================================\n")
+
     try:
         import mkdocs
     except ImportError:
         print("\n[CodeMemory] 'mkdocs-material' is not installed in your Python environment.")
         print("[CodeMemory] Installing automatically via pip...")
         import subprocess
-        import sys
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "mkdocs-material"])
             print("[CodeMemory] Successfully installed mkdocs-material!\n")
         except Exception as e:
-            print(f"[CodeMemory Note] Could not auto-install mkdocs-material: {e}")
-            print("Please run manually: pip install mkdocs-material\n")
+            print(f"\n[CodeMemory Error] Could not install mkdocs-material: {e}")
+            if sys.version_info >= (3, 15):
+                print("This failure is due to Python 3.15 lacking pre-built wheels.")
+                print("Please switch to a stable Python release (3.12, 3.13, or 3.14).\n")
+            else:
+                print("Please run manually: pip install mkdocs-material\n")
 
 if __name__ == "__main__":
     main()

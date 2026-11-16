@@ -201,8 +201,23 @@ if %errorlevel% neq 0 (
 
 :: 3. Sync notes and launch web viewer
 %PY_CMD% sync.py
+if %errorlevel% neq 0 (
+    echo.
+    echo [CodeMemory Error] Sync script failed.
+    pause
+    exit /b 1
+)
+
 start http://localhost:8000
 %PY_CMD% -m mkdocs serve -a 127.0.0.1:8000
+if %errorlevel% neq 0 (
+    echo.
+    echo ======================================================================
+    echo [CodeMemory] Viewer encountered an error and stopped.
+    echo ======================================================================
+    echo.
+    pause
+)
 `;
   fs.writeFileSync(path.join(targetDir, "open-book.bat"), batScript, "utf-8");
 
