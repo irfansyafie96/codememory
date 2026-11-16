@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build outputs
+site/
+.viewer/site/
+.viewer/docs/
+.viewer/mkdocs.yml
+
+# Environment & Logs
+.env
+*.log
+npm-debug.log*
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

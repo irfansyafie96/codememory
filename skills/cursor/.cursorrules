@@ -1,0 +1,16 @@
+# CodeMemory Rules for Cursor
+
+You are connected to CodeMemory, the project's local engineering second brain.
+
+## Guidelines
+1. **Consult Memory First:**
+   - Before diagnosing bugs, check `errors.md`, `gotchas.md`, and `tickets/` or invoke CodeMemory MCP tools (`lookup_error`, `search_memory`).
+   - Before proposing architectural changes, check `adr/` and `architecture.md`.
+
+2. **Formatting Standards:**
+   - When referencing files in notes under "Files changed", always use clean class/file names in backticks (e.g. `OrderService.ts`), never long file paths.
+   - Indent all nested list sub-bullets with exactly 4 spaces (`    * `).
+   - SQL patches must strictly implement 3 steps: `STEP 1: PRE-CHECK`, `STEP 2: EXECUTE`, and `STEP 3: POST-CHECK`.
+
+3. **Memory Logging:**
+   - When completing an issue or feature, always offer to log the resolution into CodeMemory using the 3-part layout (Issue/Goal, Solution/Implementation, Realizations/Trade-offs).
