@@ -9,7 +9,7 @@ You are connected to CodeMemory, the project's local engineering second brain.
 
 2. **Formatting Standards:**
    - When referencing files in notes under "Files changed", always use clean class/file names in backticks (e.g. `OrderService.ts`), never long file paths.
-   - Indent all nested list sub-bullets with exactly 4 spaces (`    * `).
+   - Indent all nested list sub-bullets with at least 4 spaces (`    * `). Never use 2 or 3 spaces under numbered steps, which causes Markdown to squish text into one line with literal `*` characters.
    - SQL patches must strictly implement 3 steps: `STEP 1: PRE-CHECK`, `STEP 2: EXECUTE`, and `STEP 3: POST-CHECK`.
 
 3. **Memory Logging:**

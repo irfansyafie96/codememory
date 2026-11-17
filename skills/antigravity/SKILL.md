@@ -33,7 +33,11 @@ When generating notes, SQL patches, or documentation:
    * **Never** include long full repository file paths (e.g. avoid `src/main/java/com/example/...`). Use only clean class/file names.
    * **Always** indent nested file sub-bullets with **at least 4 spaces** (`    * `). Never use 2 or 3 spaces (which breaks Markdown list rendering in MkDocs/Zensical).
 
-2. **Strict 3-Step SQL Patch Structure:**
+2. **Strict 4-Space Indentation for All Sub-Lists & Steps (Prevents Literal `*` Squishing):**
+   * **Always** indent nested sub-bullets under numbered steps (`1. Step`) or parent bullets with **at least 4 spaces** (`    * `).
+   * **Never** use 2 or 3 spaces: Python-Markdown treats 2 or 3 spaces under an ordered list as a continuous inline paragraph, squishing all items together and printing raw literal `*` characters.
+
+3. **Strict 3-Step SQL Patch Structure:**
    Every database modification patch must follow the 3-step verification model:
    * **`STEP 1: PRE-CHECK`**: Explicit `SELECT` query with expected row counts before modification.
    * **`STEP 2: EXECUTE`**: Explicit transaction block (`BEGIN; ... COMMIT;`), targeting exact primary key IDs.
