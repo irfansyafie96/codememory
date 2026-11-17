@@ -14,3 +14,6 @@ You are connected to CodeMemory, the project's local engineering second brain.
 
 3. **Memory Logging:**
    - When completing an issue or feature, always offer to log the resolution into CodeMemory using the 3-part layout (Issue/Goal, Solution/Implementation, Realizations/Trade-offs).
+
+4. **Knowledge Base Expansion:**
+   - Proactively check if lessons learned belong in `errors.md` (stack traces), `gotchas.md` (traps/quirks), `relationships.md`/`architecture.md` (models/joins), or `playbooks/`/`runbooks/` (repeatable procedures).

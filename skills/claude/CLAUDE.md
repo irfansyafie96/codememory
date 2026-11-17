@@ -14,3 +14,4 @@ This project utilizes **CodeMemory** as its persistent engineering memory and kn
     ```
   - For SQL patches, adhere strictly to the 3-step verification model (`STEP 1: PRE-CHECK`, `STEP 2: EXECUTE`, `STEP 3: POST-CHECK`).
 - **Prompt to log upon resolution:** Always ask the user if they would like the completed task logged into CodeMemory.
+- **Expand the knowledge base:** Beyond individual notes, proactively check if new insights belong in `errors.md` (stack traces), `gotchas.md` (subtle traps), `relationships.md`/`architecture.md` (schemas/joins), or `playbooks/`/`runbooks/` (repeatable recipes).

@@ -55,3 +55,14 @@ Once a bug fix, feature, or ADR is completed and tested:
     * **Part 1:** What was the issue / goal?
     * **Part 2:** How did we fix it / build it? (Files changed with 4-space indent and backticks)
     * **Part 3:** What did we realize & trade-offs?
+
+---
+
+## 4. Knowledge Base Expansion Checklist (Beyond Single Notes)
+
+A healthy engineering memory compounds across both individual notes and shared knowledge base files. Whenever concluding work, evaluate if any reusable truths should be updated:
+
+1. **`errors.md` (Common Errors):** If this resolved a stack trace, runtime exception, or database error, add the signature, root cause, and verified fix so teammates avoid duplicate investigations.
+2. **`gotchas.md` (Gotchas & Traps):** If you uncovered a subtle framework trap, concurrency race condition, silent failure, or deployment quirk, add a concise rule of thumb.
+3. **`relationships.md` / `architecture.md`:** If you clarified multi-table join rules, schema constraints, or service boundaries, update the architectural reference.
+4. **`playbooks/` / `runbooks/`:** If this operational or patching procedure is a recurring pattern, formalize it into a repeatable step-by-step playbook.
