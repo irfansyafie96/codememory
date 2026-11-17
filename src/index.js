@@ -38,6 +38,20 @@ function cleanFileBadge(f) {
   return `\`${name}\``;
 }
 
+// 3b. Helper: Auto-correct 1-3 space indented bullets to 4 spaces
+function sanitizeMarkdownLists(text) {
+  if (!text || typeof text !== "string") return text;
+  return text
+    .split("\n")
+    .map((line) => {
+      if (/^[ ]{1,3}[\*\-]\s/.test(line)) {
+        return "    " + line.trimStart();
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 // 4. Helper: Recursively search text in markdown files
 function searchFiles(dir, query, ext = ".md") {
   const results = [];
@@ -451,16 +465,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let targetSubdir = "tickets";
       let headerLabel = type === "ticket" ? "Environment" : "Status";
 
+      const cleanIssue = sanitizeMarkdownLists(summary_issue);
+      const cleanSolution = sanitizeMarkdownLists(solution);
+
       if (type === "feature") {
         targetSubdir = "features";
         noteContent = `# ${id} - ${title}
 **${headerLabel}:** ${status_or_env} | **Branch:** \`${branch}\`
 
 ### 1. What was the goal?
-${summary_issue}
+${cleanIssue}
 
 ### 2. How did we build it?
-${solution}
+${cleanSolution}
 
 ${filesBlock}
 * **Patch / Migration:** ${patchRef}
@@ -476,10 +493,10 @@ ${learnBlock}
 * **Date:** ${new Date().toISOString().split("T")[0]}
 
 ## Context and Problem Statement
-${summary_issue}
+${cleanIssue}
 
 ## Decision Outcome
-${solution}
+${cleanSolution}
 
 ### Consequences & Trade-offs
 ${learnBlock}
@@ -491,10 +508,10 @@ ${learnBlock}
 **${headerLabel}:** ${status_or_env} | **Branch:** \`${branch}\`
 
 ### 1. What was the issue?
-${summary_issue}
+${cleanIssue}
 
 ### 2. How did I fix it?
-${solution}
+${cleanSolution}
 
 ${filesBlock}
 * **SQL Patch:** ${patchRef}
