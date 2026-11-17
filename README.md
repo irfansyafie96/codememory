@@ -206,6 +206,7 @@ Open `http://localhost:8000` to browse your engineering knowledge base with dark
 ## 🤝 Contributing
 
 Contributions, feature requests, and bug reports are warmly welcome!
+
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
 3. Commit your Changes (`git commit -m 'feat: add amazing feature'`)
@@ -217,6 +218,7 @@ Contributions, feature requests, and bug reports are warmly welcome!
 ## 👤 Author
 
 **Irfan Syafie**
+
 * GitHub: [@irfansyafie96](https://github.com/irfansyafie96)
 * Email: [irfansyafie96@gmail.com](mailto:irfansyafie96@gmail.com)
 

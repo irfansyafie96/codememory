@@ -24,6 +24,7 @@ WHERE status = 'PROCESSING'
 
 #### 2. Verify Root Cause & Blockers
 Check worker logs or dependent lock tables:
+
 * Inspect server application logs for thread timeouts:
     * `grep -i "lock wait timeout" application.log`
 * Verify foreign key or transaction states.
