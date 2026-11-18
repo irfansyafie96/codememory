@@ -1,4 +1,6 @@
 import os
+import re
+import html
 import shutil
 import json
 from pathlib import Path
@@ -6,6 +8,40 @@ from pathlib import Path
 VIEWER_DIR = Path(__file__).resolve().parent
 ROOT_DIR = VIEWER_DIR.parent
 DOCS_DIR = VIEWER_DIR / "docs"
+
+MERMAID_FENCE_RE = re.compile(
+    r"^([ \t]*)```mermaid[ \t]*\r?\n(.*?)\r?\n\1```[ \t]*$",
+    re.MULTILINE | re.DOTALL,
+)
+
+def convert_mermaid_blocks(text):
+    """Convert ```mermaid fenced blocks into <pre class="mermaid"><code>...</code></pre>
+    so Material for MkDocs renders Mermaid diagrams natively without requiring
+    PyYAML's !!python/name: constructor tag (which fails on Python 3.15 SafeLoader)."""
+    def repl(match):
+        indent = match.group(1)
+        body = match.group(2)
+        if indent:
+            body_lines = [
+                line[len(indent):] if line.startswith(indent) else line
+                for line in body.splitlines()
+            ]
+            body = "\n".join(body_lines)
+        escaped = html.escape(body, quote=False)
+        if indent:
+            indented_body = "\n".join(indent + l if l else "" for l in escaped.splitlines())
+            return f'{indent}<pre class="mermaid"><code>{indented_body}</code></pre>'
+        return f'<pre class="mermaid"><code>{escaped}</code></pre>'
+
+    return MERMAID_FENCE_RE.sub(repl, text)
+
+def copy_markdown_file(src_file, dst_file):
+    if str(src_file).lower().endswith(".md"):
+        content = Path(src_file).read_text(encoding="utf-8", errors="replace")
+        converted = convert_mermaid_blocks(content)
+        Path(dst_file).write_text(converted, encoding="utf-8")
+    else:
+        shutil.copy2(src_file, dst_file)
 
 def load_config():
     cfg_path = ROOT_DIR / "codememory.config.json"
@@ -29,7 +65,7 @@ def copy_markdown_dir(src_name, dst_name):
     if src.exists() and src.is_dir():
         dst.mkdir(parents=True, exist_ok=True)
         for item in sorted(src.glob("*.md")):
-            shutil.copy2(item, dst / item.name)
+            copy_markdown_file(item, dst / item.name)
             title = item.stem.replace("-", " ").replace("_", " ").title()
             items.append({title: f"{dst_name}/{item.name}"})
     return items
@@ -58,7 +94,7 @@ def copy_patches():
                         rel_link = f"patches/{rel_p}/{f}.md" if str(rel_p) != "." else f"patches/{f}.md"
                         items.append({f: rel_link})
                     else:
-                        shutil.copy2(src_file, out_dir / f)
+                        copy_markdown_file(src_file, out_dir / f)
                         rel_link = f"patches/{rel_p}/{f}" if str(rel_p) != "." else f"patches/{f}"
                         items.append({Path(f).stem: rel_link})
     return items
@@ -68,7 +104,7 @@ def copy_file(name, target_name=None):
     src = ROOT_DIR / name
     dst = DOCS_DIR / target
     if src.exists():
-        shutil.copy2(src, dst)
+        copy_markdown_file(src, dst)
         return True
     return False
 
