@@ -12,6 +12,9 @@ site/
 .viewer/site/
 .viewer/docs/
 .viewer/mkdocs.yml
+viewer/site/
+viewer/docs/
+viewer/mkdocs.yml
 
 # Environment & Logs
 .env
