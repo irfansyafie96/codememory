@@ -138,7 +138,7 @@ async function runInit() {
   const skillsDir = path.join(ROOT_DIR, "skills");
   copyTemplate(path.join(skillsDir, "cursor", ".cursorrules"), path.join(targetDir, ".cursorrules"));
   copyTemplate(path.join(skillsDir, "claude", "CLAUDE.md"), path.join(targetDir, "CLAUDE.md"));
-  copyTemplate(path.join(skillsDir, "antigravity", "SKILL.md"), path.join(targetDir, "skills", "SKILL.md"));
+  copyTemplate(path.join(skillsDir, "antigravity", "SKILL.md"), path.join(targetDir, "skills", "codememory", "SKILL.md"));
 
   // 6. Copy viewer assets & launchers (always update viewer scripts to latest version)
   const viewerDst = path.join(targetDir, ".viewer");
