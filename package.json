@@ -22,7 +22,8 @@
   "scripts": {
     "start": "node ./src/index.js",
     "init": "node ./bin/cli.js init",
-    "book": "node ./bin/cli.js book"
+    "book": "node ./bin/cli.js book",
+    "test": "node --test"
   },
   "keywords": [
     "mcp",

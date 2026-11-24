@@ -1,0 +1,100 @@
+name: Bug Report
+description: Report something that broke or behaved unexpectedly in CodeMemory
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing **CodeMemory**! Fill in as much as you can so I can reproduce and fix it quickly.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where did the issue happen?
+      options:
+        - CLI (`codememory init` / `codememory book`)
+        - MCP Server (AI tools / stdio connection)
+        - Book Reader (MkDocs / `sync.py` / Mermaid)
+        - AI Rules / Skills (`SKILL.md`, `CLAUDE.md`, `.cursorrules`)
+        - Templates / Markdown formatting
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux (Ubuntu / Debian / etc.)
+        - WSL (Windows Subsystem for Linux)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: AI Client / IDE
+      options:
+        - Cursor
+        - Claude Code
+        - Claude Desktop
+        - Antigravity
+        - OpenCode
+        - None (CLI / Book Reader only)
+        - Other
+    validations:
+      required: false
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: CodeMemory Mode
+      options:
+        - hybrid
+        - ticket
+        - project
+        - Not sure / N/A
+    validations:
+      required: false
+
+  - type: input
+    id: versions
+    attributes:
+      label: Node & Python Versions
+      description: Run `node -v` (and `python --version` if Book Reader related)
+      placeholder: "e.g., Node v20.11.0, Python 3.12, @irfansyafie/codememory@1.0.10"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A short description of the bug and what you expected instead.
+      placeholder: "Ran `npx @irfansyafie/codememory init` and got..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Run `npx @irfansyafie/codememory init`
+        2. Choose `hybrid` mode
+        3. Run `codememory book`
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Output / Logs (optional)
+      description: Paste any terminal errors, stack traces, or screenshots.
+      render: shell
+    validations:
+      required: false

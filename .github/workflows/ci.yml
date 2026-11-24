@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run automated test suite
+        run: npm test
+
+      - name: Install MkDocs Material
+        run: python -m pip install --upgrade pip && pip install mkdocs-material
+
+      - name: Smoke test Book Reader build
+        shell: bash
+        run: |
+          node ./bin/cli.js init --dir ./ci-smoke --type hybrid
+          python ./ci-smoke/.viewer/sync.py
+          python -m mkdocs build -f ./ci-smoke/.viewer/mkdocs.yml -d ./ci-smoke/.viewer/site
+          rm -rf ./ci-smoke

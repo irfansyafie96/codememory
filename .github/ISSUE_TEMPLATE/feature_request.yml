@@ -1,0 +1,34 @@
+name: Feature Request
+description: Suggest a new MCP tool, template, AI client integration, or workflow improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - MCP Tool
+        - CLI Experience
+        - Book Reader / Viewer
+        - Templates (`tickets`, `adr`, `features`, etc.)
+        - AI Client Support (Cursor / Claude / Windsurf / etc.)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem or friction are you running into?
+      placeholder: "When I'm vibe-coding in Cursor, I wish CodeMemory could..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe how you'd like it to work (even a rough idea helps!).
+    validations:
+      required: true

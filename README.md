@@ -1,5 +1,7 @@
 # 🧠 CodeMemory
 
+[![npm version](https://img.shields.io/npm/v/@irfansyafie/codememory.svg)](https://www.npmjs.com/package/@irfansyafie/codememory)
+[![CI](https://github.com/irfansyafie96/codememory/actions/workflows/ci.yml/badge.svg)](https://github.com/irfansyafie96/codememory/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Protocol%201.0-blue)](https://modelcontextprotocol.io/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-green.svg)](https://nodejs.org/)
@@ -206,6 +208,8 @@ Open `http://localhost:8000` to browse your engineering knowledge base with dark
 ## 🤝 Contributing
 
 Contributions, feature requests, and bug reports are warmly welcome!
+
+Found a bug or have an idea? [Open an Issue](https://github.com/irfansyafie96/codememory/issues/new/choose) using the Bug Report or Feature Request form!
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
