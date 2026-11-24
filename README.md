@@ -209,12 +209,12 @@ Open `http://localhost:8000` to browse your engineering knowledge base with dark
 
 Contributions, feature requests, and bug reports are warmly welcome!
 
-Found a bug or have an idea? [Open an Issue](https://github.com/irfansyafie96/codememory/issues/new/choose) using the Bug Report or Feature Request form!
+Found a bug or have an idea? [Open an Issue](https://github.com/irfansyafie96/codememory/issues/new/choose) using the Bug Report or Feature Request form! See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, branch naming, and PR guidelines.
 
 1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
+2. Create your Branch (`git checkout -b fix/issue-1-short-description` or `git checkout -b feat/issue-2-short-description`)
+3. Commit your Changes (`git commit -m 'feat: add amazing feature (closes #2)'`)
+4. Push to the Branch (`git push origin feat/issue-2-short-description`)
 5. Open a Pull Request
 
 ---
