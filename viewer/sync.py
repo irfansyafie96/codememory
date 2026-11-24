@@ -117,7 +117,7 @@ def main():
 
     # Common files
     has_readme = copy_file("README.md", "index.md")
-    has_index = copy_file("INDEX.md")
+    has_index = copy_file("INDEX.md", "catalog.md")
     has_gotchas = copy_file("gotchas.md")
     has_errors = copy_file("errors.md")
     has_rel = copy_file("relationships.md")
@@ -142,7 +142,7 @@ def main():
     if has_readme:
         nav_lines.append("  - Overview: index.md")
     if has_index:
-        nav_lines.append("  - Index: INDEX.md")
+        nav_lines.append("  - Index: catalog.md")
 
     # Ticket mode sections
     if mode in ("ticket", "hybrid"):

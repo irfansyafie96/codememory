@@ -180,7 +180,22 @@ describe("CodeMemory end-to-end suite", () => {
     });
 
     assert.ok(fs.existsSync(path.join(hybridDir, ".viewer", "mkdocs.yml")));
-    assert.ok(fs.existsSync(path.join(hybridDir, ".viewer", "docs", "index.md")));
+    const mkdocsYml = fs.readFileSync(path.join(hybridDir, ".viewer", "mkdocs.yml"), "utf-8");
+    assert.ok(mkdocsYml.includes("Index: catalog.md"));
+    assert.ok(!mkdocsYml.includes("Index: INDEX.md"));
+
+    const syncedIndexPath = path.join(hybridDir, ".viewer", "docs", "index.md");
+    assert.ok(fs.existsSync(syncedIndexPath));
+    const syncedIndex = fs.readFileSync(syncedIndexPath, "utf-8");
+    assert.ok(syncedIndex.includes("CodeMemory"), "index.md should come from README.md");
+
+    const syncedCatalogPath = path.join(hybridDir, ".viewer", "docs", "catalog.md");
+    assert.ok(fs.existsSync(syncedCatalogPath), "catalog.md should exist for INDEX.md");
+    const syncedCatalog = fs.readFileSync(syncedCatalogPath, "utf-8");
+    assert.ok(
+      syncedCatalog.includes("# Knowledge Base Index"),
+      "catalog.md should contain INDEX.md content"
+    );
 
     const syncedRelPath = path.join(hybridDir, ".viewer", "docs", "relationships.md");
     assert.ok(fs.existsSync(syncedRelPath));
