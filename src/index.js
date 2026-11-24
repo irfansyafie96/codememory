@@ -95,6 +95,29 @@ function searchFiles(dir, query, ext = ".md") {
   return results;
 }
 
+// 4b. Load MCP server instructions from skill file (if present) or fallback
+function loadServerInstructions() {
+  const candidates = [
+    path.join(BASE_DIR, "skills", "codememory", "SKILL.md"),
+    path.join(BASE_DIR, "skills", "SKILL.md"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      try {
+        const raw = fs.readFileSync(candidate, "utf-8");
+        const stripped = raw.replace(/^---[\r\n]+[\s\S]*?[\r\n]+---[\r\n]*/, "").trim();
+        if (stripped.length > 0) return stripped;
+      } catch {}
+    }
+  }
+  return [
+    "CodeMemory Workflow Rules:",
+    "1. Always consult search_memory, lookup_error, get_entry, or get_relationships before fixing bugs or designing features.",
+    "2. After resolving an issue, implementing a feature, or making an architecture decision, prompt the user to log it via log_entry.",
+    "3. Formatting & Safety: Use 4-space indentation for nested sub-bullets, pass clean filenames in files_changed (auto-stripped to backticked basenames), and structure any sql_patch with STEP 1: PRE-CHECK, STEP 2: EXECUTE (explicit transaction + PK filter), and STEP 3: POST-CHECK.",
+  ].join("\n");
+}
+
 // 5. Initialize MCP Server
 const server = new Server(
   {
@@ -105,6 +128,7 @@ const server = new Server(
     capabilities: {
       tools: {},
     },
+    instructions: loadServerInstructions(),
   }
 );
 
@@ -194,7 +218,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "log_entry",
         description:
-          "Programmatically log a resolved ticket or completed feature into CodeMemory, update INDEX.md, format files changed cleanly with backticks, and save patches.",
+          "Programmatically log a resolved ticket, feature, or ADR into CodeMemory and update INDEX.md. Follow these formatting rules: use 4-space indentation for nested sub-bullets, pass clean filenames in files_changed (auto-stripped to backticked basenames), and structure any sql_patch with STEP 1: PRE-CHECK, STEP 2: EXECUTE (transaction + explicit PK), and STEP 3: POST-CHECK.",
         inputSchema: {
           type: "object",
           properties: {
@@ -457,7 +481,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const learnList = Array.isArray(learnings) ? learnings : [learnings];
       const learnBlock =
         learnList.length > 0
-          ? learnList.map((l) => `* **${l.split(":")[0] || "Learning"}:** ${l.split(":")[1] || l}`).join("\n")
+          ? learnList
+              .map((l) => {
+                const idx = l.indexOf(":");
+                if (idx === -1) return `* **Learning:** ${l.trim()}`;
+                const label = l.slice(0, idx).trim() || "Learning";
+                const detail = l.slice(idx + 1).trim();
+                return `* **${label}:** ${detail}`;
+              })
+              .join("\n")
           : `* Documented fix for future reference.`;
 
       // 4. Build note content

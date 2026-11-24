@@ -54,7 +54,7 @@ describe("CodeMemory end-to-end suite", () => {
       "gotchas.md",
       ".cursorrules",
       "CLAUDE.md",
-      path.join("skills", "SKILL.md"),
+      path.join("skills", "codememory", "SKILL.md"),
       path.join(".viewer", "sync.py"),
       path.join(".viewer", "mkdocs.base.yml"),
       "open-book.bat",
@@ -104,6 +104,14 @@ describe("CodeMemory end-to-end suite", () => {
     try {
       await client.connect(transport);
 
+      const instructions = client.getInstructions();
+      assert.ok(
+        typeof instructions === "string" &&
+          instructions.includes("CodeMemory") &&
+          instructions.includes("lookup_error"),
+        "MCP server should expose instructions with CodeMemory workflow rules"
+      );
+
       const { tools } = await client.listTools();
       const toolNames = tools.map((t) => t.name);
       for (const expected of [
@@ -146,7 +154,7 @@ describe("CodeMemory end-to-end suite", () => {
           solution: "Fixed cleanly",
           files_changed: ["src/service/OrderService.java"],
           sql_patch: "SELECT 1;",
-          learnings: ["Lesson: Always test"],
+          learnings: ["Port note: Viewer runs on http://localhost:8003 cleanly"],
         },
       });
 
@@ -155,6 +163,10 @@ describe("CodeMemory end-to-end suite", () => {
       const loggedNote = fs.readFileSync(loggedNotePath, "utf-8");
       assert.ok(loggedNote.includes("`OrderService.java`"), "Should clean path to basename badge");
       assert.ok(loggedNote.includes("    * sub item"), "Should sanitize 2-space indent to 4 spaces");
+      assert.ok(
+        loggedNote.includes("http://localhost:8003 cleanly"),
+        "Should preserve colons inside learnings text"
+      );
 
       assert.ok(
         fs.existsSync(path.join(hybridDir, "patches", "999_patch.sql")),
