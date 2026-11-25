@@ -197,6 +197,19 @@ The port is configured via `--port` during `init` or `"viewerPort"` in `codememo
 
 ---
 
+## 🗑️ Uninstalling
+
+CodeMemory runs via `npx` and installs nothing globally unless you installed it with `npm install -g`. To remove it cleanly:
+
+1. **Disconnect the MCP server:** Remove the `"codememory"` entry from your AI assistant's config (`mcp_config.json`, Cursor MCP Settings, or `opencode.json`).
+2. **Remove installed skills & rules** *(only if you installed them via `--clients` during `init`)*:
+   - **Project scope:** Delete `.agents/skills/codememory/`, `.claude/skills/codememory/`, `.cursor/skills/codememory/`, and `.cursor/rules/codememory.mdc`. In `AGENTS.md` / `CLAUDE.md`, remove the block between `<!-- codememory:start -->` and `<!-- codememory:end -->`.
+   - **Global scope:** Delete the `codememory/` folder from `~/.gemini/config/skills/`, `~/.claude/skills/`, `~/.cursor/skills/`, or `~/.codex/skills/`.
+3. **Notes folder (optional):** Your `./codememory` folder is plain Markdown — keep it for reference, or delete it if you no longer need the notes.
+4. **Book Reader (optional):** If you opened the Book Reader and don't use MkDocs elsewhere, run `pip uninstall mkdocs-material`.
+
+---
+
 ## 🤝 Contributing
 
 Contributions, feature requests, and bug reports are warmly welcome!
