@@ -15,9 +15,59 @@ const ROOT_DIR = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const command = args[0];
 
+// Home folder used for --scope global (overridable so tests never touch the real one)
+const HOME_DIR = process.env.CODEMEMORY_HOME ? path.resolve(process.env.CODEMEMORY_HOME) : os.homedir();
+const DEFAULT_PORT = 8000;
+const MARK_START = "<!-- codememory:start -->";
+const MARK_END = "<!-- codememory:end -->";
+
+// Every client below supports the same SKILL.md "Agent Skills" format.
+const CLIENTS = [
+  {
+    id: "antigravity",
+    label: "Antigravity",
+    projectSkill: [".agents", "skills", "codememory", "SKILL.md"],
+    globalSkill: [".gemini", "config", "skills", "codememory", "SKILL.md"],
+    pointer: { kind: "block", file: "AGENTS.md" },
+  },
+  {
+    id: "claude",
+    label: "Claude Code",
+    projectSkill: [".claude", "skills", "codememory", "SKILL.md"],
+    globalSkill: [".claude", "skills", "codememory", "SKILL.md"],
+    pointer: { kind: "block", file: "CLAUDE.md" },
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    projectSkill: [".cursor", "skills", "codememory", "SKILL.md"],
+    globalSkill: [".cursor", "skills", "codememory", "SKILL.md"],
+    pointer: { kind: "mdc", file: ".cursor/rules/codememory.mdc" },
+  },
+  {
+    id: "codex",
+    label: "OpenAI Codex CLI",
+    projectSkill: [".agents", "skills", "codememory", "SKILL.md"],
+    globalSkill: [".codex", "skills", "codememory", "SKILL.md"],
+    pointer: { kind: "block", file: "AGENTS.md" },
+  },
+];
+
+const CLIENT_ALIASES = {
+  gemini: "antigravity",
+  "claude-code": "claude",
+  claudecode: "claude",
+  "codex-cli": "codex",
+  openai: "codex",
+};
+
 function getArgValue(flag) {
   const idx = args.indexOf(flag);
-  return idx !== -1 && args[idx + 1] ? args[idx + 1] : null;
+  return idx !== -1 && args[idx + 1] && !args[idx + 1].startsWith("--") ? args[idx + 1] : null;
+}
+
+function hasFlag(flag) {
+  return args.includes(flag);
 }
 
 function copyTemplate(src, dst) {
@@ -41,173 +91,122 @@ function ensureDirWithGitkeep(dir) {
   }
 }
 
-async function runInit() {
-  const rl = readline.createInterface({ input, output });
+function parsePort(value) {
+  const n = Number(value);
+  if (Number.isInteger(n) && n >= 1024 && n <= 65535) return n;
+  console.log(`⚠️  Invalid port "${value}" (use 1024-65535). Using ${DEFAULT_PORT}.`);
+  return DEFAULT_PORT;
+}
 
-  const dirFlag = getArgValue("--dir");
-  const typeFlag = getArgValue("--type");
-  const hasExamplesFlag = args.includes("--examples");
-  const hasNoExamplesFlag = args.includes("--no-examples");
-  let targetDir = dirFlag;
-  let type = typeFlag;
-  let includeExamples = hasExamplesFlag;
-  const isInteractive =
-    !dirFlag || !typeFlag || !["ticket", "project", "hybrid"].includes(typeFlag.toLowerCase());
-
-  console.log("\n=======================================================");
-  console.log("   🧠 Welcome to CodeMemory Setup");
-  console.log("   AI-Native Engineering Memory & Universal MCP Server");
-  console.log("=======================================================\n");
-
-  // 1. Interactive Directory Selection (if not passed via flag)
-  if (!targetDir) {
-    const currentDir = process.cwd();
-    const isHome = path.resolve(currentDir) === path.resolve(os.homedir());
-
-    console.log(`Current directory: ${currentDir}`);
-    const folderAnswer = await rl.question(
-      `\n📁 Where would you like to initialize CodeMemory?\n   (Enter a folder name like "notes" or "codememory", or "." for current folder)\n   [default: ./codememory]: `
-    );
-
-    const folderChoice = folderAnswer.trim();
-
-    if (!folderChoice || folderChoice === "") {
-      targetDir = path.resolve(currentDir, "codememory");
-    } else if (folderChoice === ".") {
-      if (isHome) {
-        console.log(`\n⚠️  WARNING: You are in your user home folder (${currentDir}).`);
-        const confirmHome = await rl.question(
-          `   Initializing here will create ticket and config folders directly in your home directory.\n   Are you sure? (y/N): `
-        );
-        if (confirmHome.trim().toLowerCase() !== "y") {
-          console.log(`   Safe choice! Defaulting to dedicated folder: ./codememory`);
-          targetDir = path.resolve(currentDir, "codememory");
-        } else {
-          targetDir = currentDir;
-        }
-      } else {
-        targetDir = currentDir;
-      }
+function parseClients(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw || raw === "none") return [];
+  if (raw === "all") return CLIENTS.map((c) => c.id);
+  const ids = [];
+  for (const token of raw.split(",").map((t) => t.trim()).filter(Boolean)) {
+    const id = CLIENT_ALIASES[token] || token;
+    if (CLIENTS.some((c) => c.id === id)) {
+      if (!ids.includes(id)) ids.push(id);
     } else {
-      targetDir = path.resolve(currentDir, folderChoice);
+      console.log(`⚠️  Unknown AI client "${token}" (use: ${CLIENTS.map((c) => c.id).join(", ")}). Skipping.`);
     }
-  } else {
-    targetDir = path.resolve(targetDir);
   }
+  return ids;
+}
 
-  // 2. Interactive Type Selection (if not passed via flag)
-  if (!type || !["ticket", "project", "hybrid"].includes(type.toLowerCase())) {
-    console.log("\n🎯 Select the configuration mode for CodeMemory:");
-    console.log("   [1] ticket  - Bug fixes, incident tracking, 3-step SQL patches, playbooks & error dictionary");
-    console.log("   [2] project - Greenfield apps, feature architecture, ADRs, runbooks & data flows");
-    console.log("   [3] hybrid  - Full engineering suite combining both\n");
-
-    const typeAnswer = await rl.question("   Choose mode [1-3] (default: 1): ");
-    const choice = typeAnswer.trim();
-
-    if (choice === "2" || choice.toLowerCase() === "project") {
-      type = "project";
-    } else if (choice === "3" || choice.toLowerCase() === "hybrid") {
-      type = "hybrid";
-    } else {
-      type = "ticket";
-    }
-  } else {
-    type = type.toLowerCase();
-  }
-
-  if (isInteractive && !hasExamplesFlag && !hasNoExamplesFlag) {
-    const exAnswer = await rl.question("\n📦 Include sample demo notes to preview the Book Reader? (y/N): ");
-    includeExamples = exAnswer.trim().toLowerCase() === "y";
-  }
-
-  rl.close();
-
-  console.log(`\n⚙️  Initializing CodeMemory in [${type} mode]...`);
-  console.log(`📂 Target directory: ${targetDir}\n`);
-
-  fs.mkdirSync(targetDir, { recursive: true });
-
-  // 3. Write codememory.config.json
-  const config = {
-    name: path.basename(targetDir),
-    type: type,
-    createdAt: new Date().toISOString(),
-    environments: type === "ticket" ? ["PROD", "STG", "INT"] : ["PROD", "STAGING", "DEV"],
+function detectClients(projectRoot) {
+  const has = (...p) => fs.existsSync(path.join(...p));
+  return {
+    antigravity: has(HOME_DIR, ".gemini") || has(projectRoot, ".agents") || has(projectRoot, "GEMINI.md"),
+    claude: has(projectRoot, ".claude") || has(projectRoot, "CLAUDE.md") || has(HOME_DIR, ".claude"),
+    cursor: has(projectRoot, ".cursor"),
+    codex: has(projectRoot, "AGENTS.md") || has(HOME_DIR, ".codex"),
   };
-  fs.writeFileSync(path.join(targetDir, "codememory.config.json"), JSON.stringify(config, null, 2), "utf-8");
+}
 
-  // 4. Scaffold directories based on type (clean skeleton by default, or rich templates with --examples)
-  const tplDir = path.join(ROOT_DIR, "templates");
+function pointerBody(notesDir) {
+  return [
+    `This project keeps its engineering memory in CodeMemory (MCP server \`codememory\`, notes in \`${notesDir}\`).`,
+    "",
+    "* Before fixing a bug or building a feature, search it (`search_memory`, `lookup_error`).",
+    "* After the work is verified, PROPOSE what to log and wait for the user's approval before calling `log_entry`.",
+    "* Follow the `codememory` skill for formatting rules.",
+  ].join("\n");
+}
 
-  if (includeExamples) {
-    if (type === "ticket" || type === "hybrid") {
-      copyTemplate(path.join(tplDir, "ticket", "ticket-template.md"), path.join(targetDir, "tickets", "001-example.md"));
-      copyTemplate(path.join(tplDir, "ticket", "playbook-template.md"), path.join(targetDir, "playbooks", "example-playbook.md"));
-      copyTemplate(path.join(tplDir, "ticket", "patch-template.sql"), path.join(targetDir, "patches", "001_example_patch.sql"));
-      copyTemplate(path.join(tplDir, "ticket", "relationships.md"), path.join(targetDir, "relationships.md"));
-    }
-
-    if (type === "project" || type === "hybrid") {
-      copyTemplate(path.join(tplDir, "project", "feature-template.md"), path.join(targetDir, "features", "FEAT-001-auth.md"));
-      copyTemplate(path.join(tplDir, "project", "adr-template.md"), path.join(targetDir, "adr", "ADR-001-database-selection.md"));
-      copyTemplate(path.join(tplDir, "project", "runbook-template.md"), path.join(targetDir, "runbooks", "local-setup.md"));
-      copyTemplate(path.join(tplDir, "project", "architecture.md"), path.join(targetDir, "architecture.md"));
-    }
-
-    copyTemplate(path.join(tplDir, "common", "gotchas.md"), path.join(targetDir, "gotchas.md"));
-    copyTemplate(path.join(tplDir, "common", "errors.md"), path.join(targetDir, "errors.md"));
-    copyTemplate(path.join(tplDir, "common", "INDEX.md"), path.join(targetDir, "INDEX.md"));
-  } else {
-    if (type === "ticket" || type === "hybrid") {
-      ensureDirWithGitkeep(path.join(targetDir, "tickets"));
-      ensureDirWithGitkeep(path.join(targetDir, "playbooks"));
-      ensureDirWithGitkeep(path.join(targetDir, "patches"));
-      writeIfMissing(
-        path.join(targetDir, "relationships.md"),
-        `# Domain Entity & Database Relationships\n\n<!-- Document core database tables, Mermaid ER diagrams, join keys, and multi-table synchronization rules here. -->\n`
-      );
-    }
-
-    if (type === "project" || type === "hybrid") {
-      ensureDirWithGitkeep(path.join(targetDir, "features"));
-      ensureDirWithGitkeep(path.join(targetDir, "adr"));
-      ensureDirWithGitkeep(path.join(targetDir, "runbooks"));
-      writeIfMissing(
-        path.join(targetDir, "architecture.md"),
-        `# System Architecture & Component Map\n\n<!-- Document high-level topology, Mermaid flowcharts, service boundaries, and data flows here. -->\n`
-      );
-    }
-
-    writeIfMissing(
-      path.join(targetDir, "gotchas.md"),
-      `# Gotchas & Engineering Traps\n\n<!-- Record subtle bugs, concurrency pitfalls, environment quirks, and rules of thumb here. -->\n`
-    );
-    writeIfMissing(
-      path.join(targetDir, "errors.md"),
-      `# Common Errors & Stack Traces\n\n<!-- Record recurring error messages, stack traces, root causes, and verified fixes here. -->\n`
-    );
-    writeIfMissing(
-      path.join(targetDir, "INDEX.md"),
-      `# Knowledge Base Index\n\n| ID | Title / Summary | Category | Status / Env | Key Files | Date |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`
-    );
+function upsertBlock(file, body) {
+  const block = `${MARK_START}\n## CodeMemory\n\n${body}\n${MARK_END}\n`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, block, "utf-8");
+    return;
   }
+  const text = fs.readFileSync(file, "utf-8");
+  const start = text.indexOf(MARK_START);
+  const end = text.indexOf(MARK_END);
+  if (start !== -1 && end !== -1 && end > start) {
+    const after = text.slice(end + MARK_END.length).replace(/^\r?\n/, "");
+    fs.writeFileSync(file, text.slice(0, start) + block + after, "utf-8");
+  } else {
+    const sep = text.endsWith("\n") ? "\n" : "\n\n";
+    fs.writeFileSync(file, text + sep + block, "utf-8");
+  }
+}
 
-  copyTemplate(path.join(tplDir, "common", "README.md"), path.join(targetDir, "README.md"));
+function installClients(ids, scope, projectRoot, notesDir) {
+  const skillSrc = path.join(ROOT_DIR, "skills", "codememory", "SKILL.md");
+  const done = new Set();
+  const report = [];
+  for (const id of ids) {
+    const client = CLIENTS.find((c) => c.id === id);
+    if (!client) continue;
+    const base = scope === "global" ? HOME_DIR : projectRoot;
+    const skillDst = path.join(base, ...(scope === "global" ? client.globalSkill : client.projectSkill));
+    if (!done.has(skillDst)) {
+      fs.mkdirSync(path.dirname(skillDst), { recursive: true });
+      fs.copyFileSync(skillSrc, skillDst);
+      done.add(skillDst);
+      report.push(`${client.label}: skill -> ${skillDst}`);
+    }
+    if (scope === "project") {
+      const pointerDst = path.join(projectRoot, ...client.pointer.file.split("/"));
+      if (!done.has(pointerDst)) {
+        if (client.pointer.kind === "mdc") {
+          fs.mkdirSync(path.dirname(pointerDst), { recursive: true });
+          fs.writeFileSync(
+            pointerDst,
+            `---\ndescription: CodeMemory workflow - consult memory before work, propose what to log after\nalwaysApply: true\n---\n\n${pointerBody(notesDir)}\n`,
+            "utf-8"
+          );
+        } else {
+          upsertBlock(pointerDst, pointerBody(notesDir));
+        }
+        done.add(pointerDst);
+        report.push(`${client.label}: rules pointer -> ${pointerDst}`);
+      }
+    }
+  }
+  return report;
+}
 
-  // 5. Inject AI Rules directly into the target so AI automatically picks them up!
-  const skillsDir = path.join(ROOT_DIR, "skills");
-  copyTemplate(path.join(skillsDir, "cursor", ".cursorrules"), path.join(targetDir, ".cursorrules"));
-  copyTemplate(path.join(skillsDir, "claude", "CLAUDE.md"), path.join(targetDir, "CLAUDE.md"));
-  copyTemplate(path.join(skillsDir, "antigravity", "SKILL.md"), path.join(targetDir, "skills", "codememory", "SKILL.md"));
+function printInitHelp() {
+  console.log(`
+Usage: codememory init [options]
 
-  // 6. Copy viewer assets & launchers (always update viewer scripts to latest version)
-  const viewerDst = path.join(targetDir, ".viewer");
-  fs.mkdirSync(viewerDst, { recursive: true });
-  fs.copyFileSync(path.join(ROOT_DIR, "viewer", "mkdocs.base.yml"), path.join(viewerDst, "mkdocs.base.yml"));
-  fs.copyFileSync(path.join(ROOT_DIR, "viewer", "sync.py"), path.join(viewerDst, "sync.py"));
+  With no --dir the command asks questions interactively.
+  With --dir it runs fully non-interactive using only the flags below.
 
-  const batScript = `@echo off
+  --dir <path>              Notes folder to create (default when non-interactive: ./codememory)
+  --port <number>           Book Reader port, 1024-65535 (default ${DEFAULT_PORT})
+  --examples                Include sample demo notes (default: clean skeleton)
+  --clients <list>          antigravity,claude,cursor,codex | all | none (default: none)
+  --scope <project|global>  Where to install the skill (default: project)
+  --project-root <path>     Project root used by --scope project (default: current folder)
+`);
+}
+
+function buildBatScript() {
+  return `@echo off
 cd /d "%~dp0\\.viewer"
 
 :: 1. Detect Real Python (bypass Microsoft Store 0KB dummy alias)
@@ -268,7 +267,7 @@ if %errorlevel% neq 0 (
     "%PY_CMD%" -m pip install mkdocs-material
 )
 
-:: 3. Sync notes and launch web viewer
+:: 3. Sync notes (also writes port.txt + dev_addr from codememory.config.json) and launch viewer
 "%PY_CMD%" sync.py
 if %errorlevel% neq 0 (
     echo.
@@ -277,8 +276,10 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-start http://localhost:8000
-"%PY_CMD%" -m mkdocs serve -a 127.0.0.1:8000
+set "PORT=${DEFAULT_PORT}"
+if exist port.txt set /p PORT=<port.txt
+start http://localhost:%PORT%
+"%PY_CMD%" -m mkdocs serve
 if %errorlevel% neq 0 (
     echo.
     echo ======================================================================
@@ -288,9 +289,10 @@ if %errorlevel% neq 0 (
     pause
 )
 `;
-  fs.writeFileSync(path.join(targetDir, "open-book.bat"), batScript, "utf-8");
+}
 
-  const shScript = `#!/usr/bin/env bash
+function buildShScript() {
+  return `#!/usr/bin/env bash
 cd "$(dirname "$0")/.viewer"
 
 # 1. Detect Real Python (filter out WindowsApps dummy stub)
@@ -337,59 +339,255 @@ if ! "$PYTHON_BIN" -m mkdocs --version &> /dev/null; then
   "$PYTHON_BIN" -m pip install mkdocs-material
 fi
 
-# 3. Sync notes and launch web viewer
+# 3. Sync notes (also writes port.txt + dev_addr from codememory.config.json) and launch viewer
 "$PYTHON_BIN" sync.py
+PORT=${DEFAULT_PORT}
+if [ -f port.txt ]; then PORT=$(cat port.txt); fi
 if command -v xdg-open > /dev/null; then
-  xdg-open http://localhost:8000 &
+  xdg-open "http://localhost:$PORT" &
 elif command -v open > /dev/null; then
-  open http://localhost:8000 &
+  open "http://localhost:$PORT" &
 elif command -v start > /dev/null; then
-  start http://localhost:8000 &
+  start "http://localhost:$PORT" &
 fi
-"$PYTHON_BIN" -m mkdocs serve -a 127.0.0.1:8000
+"$PYTHON_BIN" -m mkdocs serve
 if [ $? -ne 0 ]; then
   echo ""
   echo "[CodeMemory] Viewer encountered an error and stopped."
   read -p "Press Enter to exit..."
 fi
 `;
-  try {
-    fs.writeFileSync(path.join(targetDir, "open-book.sh"), shScript, { encoding: "utf-8", mode: 0o755 });
-  } catch {
-    fs.writeFileSync(path.join(targetDir, "open-book.sh"), shScript, "utf-8");
+}
+
+function scaffoldNotes(targetDir, includeExamples) {
+  const tpl = (name) => path.join(ROOT_DIR, "templates", name);
+
+  if (includeExamples) {
+    copyTemplate(tpl("issue-example.md"), path.join(targetDir, "issues", "1.md"));
+    copyTemplate(tpl("playbook-example.md"), path.join(targetDir, "playbooks", "example-playbook.md"));
+    copyTemplate(tpl("patch-example.sql"), path.join(targetDir, "patches", "1_patch.sql"));
+    copyTemplate(tpl("query-example.md"), path.join(targetDir, "queries", "example-queries.md"));
+    copyTemplate(tpl("architecture.md"), path.join(targetDir, "architecture.md"));
+    copyTemplate(tpl("errors.md"), path.join(targetDir, "errors.md"));
+    copyTemplate(tpl("gotchas.md"), path.join(targetDir, "gotchas.md"));
+    copyTemplate(tpl("INDEX.md"), path.join(targetDir, "INDEX.md"));
+  } else {
+    ensureDirWithGitkeep(path.join(targetDir, "issues"));
+    ensureDirWithGitkeep(path.join(targetDir, "playbooks"));
+    writeIfMissing(
+      path.join(targetDir, "architecture.md"),
+      `# System Architecture & Code Map\n\n<!-- Document high-level topology, Mermaid flowcharts and ER diagrams, service boundaries, screen-to-service-to-table flows, and multi-table sync rules here. -->\n`
+    );
+    writeIfMissing(
+      path.join(targetDir, "gotchas.md"),
+      `# Gotchas & Key Decisions\n\n<!-- Record subtle bugs, environment quirks, rules of thumb, and the reasons behind important design choices here. -->\n`
+    );
+    writeIfMissing(
+      path.join(targetDir, "errors.md"),
+      `# Common Errors & Stack Traces\n\n<!-- Record recurring error messages, stack traces, root causes, and verified fixes here. -->\n`
+    );
+    writeIfMissing(
+      path.join(targetDir, "INDEX.md"),
+      `# Knowledge Base Index\n\n| ID | Title / Summary | Type | Status / Env | Key Files | Date |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`
+    );
   }
 
-  console.log(`✅ [OK] Successfully initialized CodeMemory (${type} mode)!`);
+  copyTemplate(tpl("README.md"), path.join(targetDir, "README.md"));
+}
+
+async function runInit() {
+  if (hasFlag("--help") || hasFlag("-h")) {
+    printInitHelp();
+    process.exit(0);
+  }
+
+  const dirFlag = getArgValue("--dir");
+  const interactive = !dirFlag && Boolean(process.stdin.isTTY);
+  const projectRoot = path.resolve(getArgValue("--project-root") || process.cwd());
+  const rl = interactive ? readline.createInterface({ input, output }) : null;
+
+  console.log("\n=======================================================");
+  console.log("   🧠 Welcome to CodeMemory Setup");
+  console.log("   AI-Native Engineering Memory & Universal MCP Server");
+  console.log("=======================================================\n");
+
+  // 1. Notes folder
+  let targetDir;
+  if (dirFlag) {
+    targetDir = path.resolve(dirFlag);
+  } else if (interactive) {
+    const currentDir = process.cwd();
+    const isHome = path.resolve(currentDir) === path.resolve(os.homedir());
+
+    console.log(`Current directory: ${currentDir}`);
+    const folderAnswer = await rl.question(
+      `\n📁 Where should we put CodeMemory?\n   (Enter a folder name like "notes" or "codememory", or "." for current folder)\n   [default: ./codememory]: `
+    );
+    const folderChoice = folderAnswer.trim();
+
+    if (!folderChoice) {
+      targetDir = path.resolve(currentDir, "codememory");
+    } else if (folderChoice === ".") {
+      if (isHome) {
+        console.log(`\n⚠️  WARNING: You are in your user home folder (${currentDir}).`);
+        const confirmHome = await rl.question(
+          `   Initializing here will create notes folders directly in your home directory.\n   Are you sure? (y/N): `
+        );
+        if (confirmHome.trim().toLowerCase() !== "y") {
+          console.log(`   Safe choice! Defaulting to dedicated folder: ./codememory`);
+          targetDir = path.resolve(currentDir, "codememory");
+        } else {
+          targetDir = currentDir;
+        }
+      } else {
+        targetDir = currentDir;
+      }
+    } else {
+      targetDir = path.resolve(currentDir, folderChoice);
+    }
+  } else {
+    targetDir = path.resolve(process.cwd(), "codememory");
+  }
+
+  if (getArgValue("--type")) {
+    console.log("ℹ️  --type is no longer needed (CodeMemory v2 uses one unified layout). Ignoring it.");
+  }
+
+  // Existing config (re-running init keeps your port and numbering)
+  const cfgPath = path.join(targetDir, "codememory.config.json");
+  let prevConfig = {};
+  try {
+    prevConfig = JSON.parse(fs.readFileSync(cfgPath, "utf-8").replace(/^\uFEFF/, ""));
+  } catch {}
+
+  // 2. Book Reader port
+  let port = Number.isInteger(prevConfig.viewerPort) ? prevConfig.viewerPort : DEFAULT_PORT;
+  const portFlag = getArgValue("--port");
+  if (portFlag) {
+    port = parsePort(portFlag);
+  } else if (interactive) {
+    const portAnswer = (await rl.question(`\n🌐 Book Reader port [${port}]: `)).trim();
+    if (portAnswer) port = parsePort(portAnswer);
+  }
+
+  // 3. Sample notes
+  let includeExamples = hasFlag("--examples");
+  if (interactive && !hasFlag("--examples") && !hasFlag("--no-examples")) {
+    const exAnswer = await rl.question("\n📦 Include sample demo notes to preview the Book Reader? (y/N): ");
+    includeExamples = exAnswer.trim().toLowerCase() === "y";
+  }
+
+  // 4. AI client skills (detect, then confirm - never silent)
+  let clientIds = [];
+  let scope = (getArgValue("--scope") || "").toLowerCase();
+  const clientsFlag = getArgValue("--clients");
+  if (clientsFlag !== null) {
+    clientIds = parseClients(clientsFlag);
+  } else if (interactive) {
+    const detected = detectClients(projectRoot);
+    console.log("\n🤖 Which AI tools do you use? (detected ones are marked)");
+    CLIENTS.forEach((c, i) => console.log(`   [${i + 1}] ${c.label}${detected[c.id] ? "  (detected)" : ""}`));
+    const ans = (await rl.question("   Numbers separated by commas, Enter = detected ones, 'none' to skip: ")).trim().toLowerCase();
+    if (ans === "") {
+      clientIds = CLIENTS.filter((c) => detected[c.id]).map((c) => c.id);
+    } else {
+      const tokens = ans
+        .split(",")
+        .map((s) => s.trim())
+        .map((s) => (/^[1-9]$/.test(s) && CLIENTS[Number(s) - 1] ? CLIENTS[Number(s) - 1].id : s));
+      clientIds = parseClients(tokens.join(","));
+    }
+  }
+  if (clientIds.length > 0 && !["project", "global"].includes(scope)) {
+    scope = "project";
+    if (interactive) {
+      console.log(`\n📍 Where should the skill be installed?`);
+      console.log(`   [1] This project (${projectRoot})  (default)`);
+      console.log(`   [2] Globally for me (${HOME_DIR})`);
+      const scopeAns = (await rl.question("   Choose [1-2]: ")).trim();
+      if (scopeAns === "2") scope = "global";
+    }
+  }
+
+  if (rl) rl.close();
+
+  console.log(`\n⚙️  Initializing CodeMemory...`);
+  console.log(`📂 Target directory: ${targetDir}\n`);
+
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  // 5. Config
+  const config = {
+    name: prevConfig.name || path.basename(targetDir),
+    version: 2,
+    createdAt: prevConfig.createdAt || new Date().toISOString(),
+    viewerPort: port,
+    lastAutoId: Math.max(Number(prevConfig.lastAutoId) || 0, includeExamples ? 1 : 0),
+  };
+  fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), "utf-8");
+
+  // 6. Notes skeleton (clean by default)
+  scaffoldNotes(targetDir, includeExamples);
+
+  // 7. Viewer assets & launchers (always refreshed to the latest version)
+  const viewerDst = path.join(targetDir, ".viewer");
+  fs.mkdirSync(viewerDst, { recursive: true });
+  fs.copyFileSync(path.join(ROOT_DIR, "viewer", "mkdocs.base.yml"), path.join(viewerDst, "mkdocs.base.yml"));
+  fs.copyFileSync(path.join(ROOT_DIR, "viewer", "sync.py"), path.join(viewerDst, "sync.py"));
+  fs.writeFileSync(path.join(targetDir, "open-book.bat"), buildBatScript(), "utf-8");
+  try {
+    fs.writeFileSync(path.join(targetDir, "open-book.sh"), buildShScript(), { encoding: "utf-8", mode: 0o755 });
+  } catch {
+    fs.writeFileSync(path.join(targetDir, "open-book.sh"), buildShScript(), "utf-8");
+  }
+
+  // 8. AI skills
+  const installed = clientIds.length > 0 ? installClients(clientIds, scope, projectRoot, targetDir) : [];
+
+  console.log(`✅ [OK] Successfully initialized CodeMemory!`);
   console.log(`\n=======================================================`);
   console.log(`   🎉 What to do next:`);
   console.log(`=======================================================`);
-  console.log(`1. 📖 Browse Knowledge Base in Interactive Reader:`);
+  console.log(`1. 📖 Browse your notes in the interactive Book Reader (http://localhost:${port}):`);
   console.log(`   - Windows: double click 'open-book.bat' in ${path.basename(targetDir)}`);
   console.log(`   - Mac/Linux: run './open-book.sh' (auto-installs viewer dependencies on first run)`);
-  console.log(`\n2. 🤖 Connect AI Assistant:`);
+  console.log(`\n2. 🤖 Connect your AI assistant (MCP):`);
   console.log(`   - For Cursor / Antigravity / Claude Desktop (mcp_config.json):`);
-  console.log(JSON.stringify({
-    mcpServers: {
-      codememory: {
-        command: "npx",
-        args: ["-y", "@irfansyafie/codememory@latest", "--dir", targetDir]
-      }
-    }
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        mcpServers: {
+          codememory: { command: "npx", args: ["-y", "@irfansyafie/codememory@latest", "--dir", targetDir] },
+        },
+      },
+      null,
+      2
+    )
+  );
   console.log(`\n   - For OpenCode (opencode.json):`);
-  console.log(JSON.stringify({
-    codememory: {
-      type: "local",
-      command: ["npx", "-y", "@irfansyafie/codememory@latest", "--dir", targetDir],
-      enabled: true
-    }
-  }, null, 2));
-  console.log(`\n3. 💡 Using with your AI:`);
-  console.log(`   AI rules (.cursorrules, CLAUDE.md) have been auto-injected.`);
-  console.log(`   Try asking your AI:`);
-  console.log(`   > "Lookup error ORA-00001 in CodeMemory"`);
-  console.log(`   > "Check CodeMemory gotchas before I write this database transaction"`);
-  console.log(`   > "Log this bug fix into CodeMemory"\n`);
+  console.log(
+    JSON.stringify(
+      {
+        codememory: {
+          type: "local",
+          command: ["npx", "-y", "@irfansyafie/codememory@latest", "--dir", targetDir],
+          enabled: true,
+        },
+      },
+      null,
+      2
+    )
+  );
+  console.log(`\n3. 🧩 AI skill & rules:`);
+  if (installed.length > 0) {
+    installed.forEach((line) => console.log(`   - ${line}`));
+  } else {
+    console.log(`   - None installed. The MCP server already sends the workflow rules to your AI on connect.`);
+    console.log(`   - To also install the skill: codememory init --dir "${targetDir}" --clients all --scope global`);
+  }
+  console.log(`\n4. 💡 How logging works:`);
+  console.log(`   After a fix or feature, your AI will PROPOSE what to save and wait for your approval.`);
+  console.log(`   Try asking: "Check CodeMemory before I fix this" or "What did we learn from the last issue?"\n`);
 
   process.exit(0);
 }
