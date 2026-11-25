@@ -27,11 +27,32 @@ function copyTemplate(src, dst) {
   }
 }
 
+function writeIfMissing(dst, content) {
+  if (!fs.existsSync(dst)) {
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.writeFileSync(dst, content, "utf-8");
+  }
+}
+
+function ensureDirWithGitkeep(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  if (fs.readdirSync(dir).length === 0) {
+    fs.writeFileSync(path.join(dir, ".gitkeep"), "", "utf-8");
+  }
+}
+
 async function runInit() {
   const rl = readline.createInterface({ input, output });
 
-  let targetDir = getArgValue("--dir");
-  let type = getArgValue("--type");
+  const dirFlag = getArgValue("--dir");
+  const typeFlag = getArgValue("--type");
+  const hasExamplesFlag = args.includes("--examples");
+  const hasNoExamplesFlag = args.includes("--no-examples");
+  let targetDir = dirFlag;
+  let type = typeFlag;
+  let includeExamples = hasExamplesFlag;
+  const isInteractive =
+    !dirFlag || !typeFlag || !["ticket", "project", "hybrid"].includes(typeFlag.toLowerCase());
 
   console.log("\n=======================================================");
   console.log("   🧠 Welcome to CodeMemory Setup");
@@ -95,6 +116,11 @@ async function runInit() {
     type = type.toLowerCase();
   }
 
+  if (isInteractive && !hasExamplesFlag && !hasNoExamplesFlag) {
+    const exAnswer = await rl.question("\n📦 Include sample demo notes to preview the Book Reader? (y/N): ");
+    includeExamples = exAnswer.trim().toLowerCase() === "y";
+  }
+
   rl.close();
 
   console.log(`\n⚙️  Initializing CodeMemory in [${type} mode]...`);
@@ -111,27 +137,62 @@ async function runInit() {
   };
   fs.writeFileSync(path.join(targetDir, "codememory.config.json"), JSON.stringify(config, null, 2), "utf-8");
 
-  // 4. Scaffold directories based on type
+  // 4. Scaffold directories based on type (clean skeleton by default, or rich templates with --examples)
   const tplDir = path.join(ROOT_DIR, "templates");
 
-  if (type === "ticket" || type === "hybrid") {
-    copyTemplate(path.join(tplDir, "ticket", "ticket-template.md"), path.join(targetDir, "tickets", "001-example.md"));
-    copyTemplate(path.join(tplDir, "ticket", "playbook-template.md"), path.join(targetDir, "playbooks", "example-playbook.md"));
-    copyTemplate(path.join(tplDir, "ticket", "patch-template.sql"), path.join(targetDir, "patches", "001_example_patch.sql"));
-    copyTemplate(path.join(tplDir, "ticket", "relationships.md"), path.join(targetDir, "relationships.md"));
+  if (includeExamples) {
+    if (type === "ticket" || type === "hybrid") {
+      copyTemplate(path.join(tplDir, "ticket", "ticket-template.md"), path.join(targetDir, "tickets", "001-example.md"));
+      copyTemplate(path.join(tplDir, "ticket", "playbook-template.md"), path.join(targetDir, "playbooks", "example-playbook.md"));
+      copyTemplate(path.join(tplDir, "ticket", "patch-template.sql"), path.join(targetDir, "patches", "001_example_patch.sql"));
+      copyTemplate(path.join(tplDir, "ticket", "relationships.md"), path.join(targetDir, "relationships.md"));
+    }
+
+    if (type === "project" || type === "hybrid") {
+      copyTemplate(path.join(tplDir, "project", "feature-template.md"), path.join(targetDir, "features", "FEAT-001-auth.md"));
+      copyTemplate(path.join(tplDir, "project", "adr-template.md"), path.join(targetDir, "adr", "ADR-001-database-selection.md"));
+      copyTemplate(path.join(tplDir, "project", "runbook-template.md"), path.join(targetDir, "runbooks", "local-setup.md"));
+      copyTemplate(path.join(tplDir, "project", "architecture.md"), path.join(targetDir, "architecture.md"));
+    }
+
+    copyTemplate(path.join(tplDir, "common", "gotchas.md"), path.join(targetDir, "gotchas.md"));
+    copyTemplate(path.join(tplDir, "common", "errors.md"), path.join(targetDir, "errors.md"));
+    copyTemplate(path.join(tplDir, "common", "INDEX.md"), path.join(targetDir, "INDEX.md"));
+  } else {
+    if (type === "ticket" || type === "hybrid") {
+      ensureDirWithGitkeep(path.join(targetDir, "tickets"));
+      ensureDirWithGitkeep(path.join(targetDir, "playbooks"));
+      ensureDirWithGitkeep(path.join(targetDir, "patches"));
+      writeIfMissing(
+        path.join(targetDir, "relationships.md"),
+        `# Domain Entity & Database Relationships\n\n<!-- Document core database tables, Mermaid ER diagrams, join keys, and multi-table synchronization rules here. -->\n`
+      );
+    }
+
+    if (type === "project" || type === "hybrid") {
+      ensureDirWithGitkeep(path.join(targetDir, "features"));
+      ensureDirWithGitkeep(path.join(targetDir, "adr"));
+      ensureDirWithGitkeep(path.join(targetDir, "runbooks"));
+      writeIfMissing(
+        path.join(targetDir, "architecture.md"),
+        `# System Architecture & Component Map\n\n<!-- Document high-level topology, Mermaid flowcharts, service boundaries, and data flows here. -->\n`
+      );
+    }
+
+    writeIfMissing(
+      path.join(targetDir, "gotchas.md"),
+      `# Gotchas & Engineering Traps\n\n<!-- Record subtle bugs, concurrency pitfalls, environment quirks, and rules of thumb here. -->\n`
+    );
+    writeIfMissing(
+      path.join(targetDir, "errors.md"),
+      `# Common Errors & Stack Traces\n\n<!-- Record recurring error messages, stack traces, root causes, and verified fixes here. -->\n`
+    );
+    writeIfMissing(
+      path.join(targetDir, "INDEX.md"),
+      `# Knowledge Base Index\n\n| ID | Title / Summary | Category | Status / Env | Key Files | Date |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`
+    );
   }
 
-  if (type === "project" || type === "hybrid") {
-    copyTemplate(path.join(tplDir, "project", "feature-template.md"), path.join(targetDir, "features", "FEAT-001-auth.md"));
-    copyTemplate(path.join(tplDir, "project", "adr-template.md"), path.join(targetDir, "adr", "ADR-001-database-selection.md"));
-    copyTemplate(path.join(tplDir, "project", "runbook-template.md"), path.join(targetDir, "runbooks", "local-setup.md"));
-    copyTemplate(path.join(tplDir, "project", "architecture.md"), path.join(targetDir, "architecture.md"));
-  }
-
-  // Common knowledge base files
-  copyTemplate(path.join(tplDir, "common", "gotchas.md"), path.join(targetDir, "gotchas.md"));
-  copyTemplate(path.join(tplDir, "common", "errors.md"), path.join(targetDir, "errors.md"));
-  copyTemplate(path.join(tplDir, "common", "INDEX.md"), path.join(targetDir, "INDEX.md"));
   copyTemplate(path.join(tplDir, "common", "README.md"), path.join(targetDir, "README.md"));
 
   // 5. Inject AI Rules directly into the target so AI automatically picks them up!
