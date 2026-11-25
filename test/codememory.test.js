@@ -76,19 +76,45 @@ describe("CodeMemory end-to-end suite", () => {
         assert.ok(fs.existsSync(path.join(targetDir, rel)), `Missing ${rel} in ${mode} mode`);
       }
 
+      // Default init should scaffold clean skeleton without dummy boilerplate
+      assert.ok(!fs.existsSync(path.join(targetDir, "tickets", "001-example.md")));
+      assert.ok(!fs.existsSync(path.join(targetDir, "features", "FEAT-001-auth.md")));
+      assert.ok(!fs.existsSync(path.join(targetDir, "adr", "ADR-001-database-selection.md")));
+      assert.ok(!fs.existsSync(path.join(targetDir, "patches", "001_example_patch.sql")));
+
+      const indexText = fs.readFileSync(path.join(targetDir, "INDEX.md"), "utf-8");
+      assert.ok(!indexText.includes("`001`") && !indexText.includes("`FEAT-001`"));
+
+      const errorsText = fs.readFileSync(path.join(targetDir, "errors.md"), "utf-8");
+      assert.ok(!errorsText.includes("ORA-00001"));
+
       if (mode === "ticket" || mode === "hybrid") {
-        assert.ok(fs.existsSync(path.join(targetDir, "tickets", "001-example.md")));
-        assert.ok(fs.existsSync(path.join(targetDir, "patches", "001_example_patch.sql")));
+        assert.ok(fs.existsSync(path.join(targetDir, "tickets")));
+        assert.ok(fs.existsSync(path.join(targetDir, "patches")));
+        assert.ok(fs.existsSync(path.join(targetDir, "playbooks")));
         assert.ok(fs.existsSync(path.join(targetDir, "relationships.md")));
       }
 
       if (mode === "project" || mode === "hybrid") {
-        assert.ok(fs.existsSync(path.join(targetDir, "features", "FEAT-001-auth.md")));
-        assert.ok(fs.existsSync(path.join(targetDir, "adr", "ADR-001-database-selection.md")));
-        assert.ok(fs.existsSync(path.join(targetDir, "runbooks", "local-setup.md")));
+        assert.ok(fs.existsSync(path.join(targetDir, "features")));
+        assert.ok(fs.existsSync(path.join(targetDir, "adr")));
+        assert.ok(fs.existsSync(path.join(targetDir, "runbooks")));
         assert.ok(fs.existsSync(path.join(targetDir, "architecture.md")));
       }
     }
+
+    // Opt-in --examples flag should populate sample demo files
+    const demoDir = path.join(tmpRoot, "demo-repo");
+    execFileSync(
+      process.execPath,
+      [CLI_PATH, "init", "--dir", demoDir, "--type", "hybrid", "--examples"],
+      { stdio: "pipe" }
+    );
+    assert.ok(fs.existsSync(path.join(demoDir, "tickets", "001-example.md")));
+    assert.ok(fs.existsSync(path.join(demoDir, "patches", "001_example_patch.sql")));
+    assert.ok(fs.existsSync(path.join(demoDir, "features", "FEAT-001-auth.md")));
+    assert.ok(fs.existsSync(path.join(demoDir, "adr", "ADR-001-database-selection.md")));
+    assert.ok(fs.readFileSync(path.join(demoDir, "relationships.md"), "utf-8").includes("erDiagram"));
   });
 
   it("exposes MCP tools over stdio and executes search, lookup, relationships, and log_entry", async () => {
@@ -141,7 +167,7 @@ describe("CodeMemory end-to-end suite", () => {
         name: "get_relationships",
         arguments: {},
       });
-      assert.ok(relRes.content[0].text.includes("erDiagram"));
+      assert.ok(relRes.content[0].text.includes("Domain Entity & Database Relationships"));
 
       await client.callTool({
         name: "log_entry",
@@ -209,7 +235,11 @@ describe("CodeMemory end-to-end suite", () => {
       "catalog.md should contain INDEX.md content"
     );
 
-    const syncedRelPath = path.join(hybridDir, ".viewer", "docs", "relationships.md");
+    const demoDir = path.join(tmpRoot, "demo-repo");
+    execFileSync(pythonCmd, [path.join(demoDir, ".viewer", "sync.py")], {
+      stdio: "pipe",
+    });
+    const syncedRelPath = path.join(demoDir, ".viewer", "docs", "relationships.md");
     assert.ok(fs.existsSync(syncedRelPath));
     const syncedRel = fs.readFileSync(syncedRelPath, "utf-8");
     assert.ok(syncedRel.includes('<pre class="mermaid"><code>'));

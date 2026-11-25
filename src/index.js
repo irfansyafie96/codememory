@@ -254,7 +254,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             sql_patch: {
               type: "string",
-              description: "Optional SQL patch statements (will be saved into patches/).",
+              description:
+                "Optional SQL patch statements saved into patches/. Must follow 3-step verification: STEP 1: PRE-CHECK (SELECT with expected count), STEP 2: EXECUTE (BEGIN...COMMIT with explicit PK), and STEP 3: POST-CHECK (verification SELECT).",
             },
             learnings: {
               type: "array",
