@@ -1,12 +1,23 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PKG_ROOT = path.resolve(__dirname, "..");
+const PKG_VERSION = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf-8")).version;
+  } catch {
+    return "2.0.0";
+  }
+})();
 
 // 1. Resolve root notes directory
 function parseArg(flag) {
@@ -18,8 +29,8 @@ const dirArg = parseArg("--dir");
 const BASE_DIR = path.resolve(dirArg || process.env.CODEMEMORY_DIR || process.cwd());
 
 // 2. Load codememory.config.json if present
-let config = { name: "CodeMemory", type: "hybrid" };
 const configPath = path.join(BASE_DIR, "codememory.config.json");
+let config = { name: "CodeMemory" };
 if (fs.existsSync(configPath)) {
   try {
     config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
@@ -28,9 +39,18 @@ if (fs.existsSync(configPath)) {
   }
 }
 
-// 3. Helper: Clean filename to badge
+function saveConfig(patch) {
+  config = { ...config, ...patch };
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Warning: Failed to save codememory.config.json:", err.message);
+  }
+}
+
+// 3. Helpers
 function cleanFileBadge(f) {
-  let name = f.trim();
+  let name = String(f).trim();
   if (name.startsWith("`") && name.endsWith("`")) {
     name = name.slice(1, -1).trim();
   }
@@ -38,7 +58,7 @@ function cleanFileBadge(f) {
   return `\`${name}\``;
 }
 
-// 3b. Helper: Auto-correct 1-3 space indented bullets to 4 spaces
+// Auto-correct 1-3 space indented bullets to 4 spaces
 function sanitizeMarkdownLists(text) {
   if (!text || typeof text !== "string") return text;
   return text
@@ -52,40 +72,56 @@ function sanitizeMarkdownLists(text) {
     .join("\n");
 }
 
-// 4. Helper: Recursively search text in markdown files
-function searchFiles(dir, query, ext = ".md") {
+// Entry ids become file names, so keep them to a safe character set (no path traversal)
+function sanitizeId(raw) {
+  return String(raw)
+    .trim()
+    .replace(/^#+/, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 64);
+}
+
+function sanitizeTitle(raw) {
+  return String(raw).replace(/\s+/g, " ").replace(/\|/g, "/").trim();
+}
+
+function normalizeType(raw) {
+  const map = {
+    bug: "Bug",
+    fix: "Bug",
+    ticket: "Bug",
+    incident: "Bug",
+    feature: "Feature",
+    feat: "Feature",
+    decision: "Decision",
+    adr: "Decision",
+  };
+  return map[String(raw || "bug").toLowerCase()] || "Bug";
+}
+
+// Recursively search text files; returns [{ file, path, matches }]
+function searchFiles(dir, query, { exts = [".md"], filter } = {}) {
   const results = [];
   if (!fs.existsSync(dir)) return results;
-
   const qLower = query.toLowerCase();
 
   function scan(current) {
-    const entries = fs.readdirSync(current, { withFileTypes: true });
-    for (const ent of entries) {
+    for (const ent of fs.readdirSync(current, { withFileTypes: true })) {
       const full = path.join(current, ent.name);
       if (ent.isDirectory()) {
-        if (ent.name !== "node_modules" && ent.name !== ".git" && ent.name !== ".viewer") {
-          scan(full);
-        }
-      } else if (ent.isFile() && ent.name.endsWith(ext)) {
+        if (ent.name !== "node_modules" && ent.name !== ".git" && ent.name !== ".viewer") scan(full);
+      } else if (ent.isFile() && exts.some((e) => ent.name.toLowerCase().endsWith(e))) {
+        if (filter && !filter(full)) continue;
         try {
           const content = fs.readFileSync(full, "utf-8");
-          if (content.toLowerCase().includes(qLower)) {
-            const rel = path.relative(BASE_DIR, full);
-            const lines = content.split("\n");
-            const matches = [];
-            for (let i = 0; i < lines.length; i++) {
-              if (lines[i].toLowerCase().includes(qLower)) {
-                matches.push({ line: i + 1, text: lines[i].trim() });
-                if (matches.length >= 5) break;
-              }
-            }
-            results.push({
-              file: rel,
-              path: full,
-              matches,
-            });
+          if (!content.toLowerCase().includes(qLower)) continue;
+          const matches = [];
+          const lines = content.split("\n");
+          for (let i = 0; i < lines.length && matches.length < 5; i++) {
+            if (lines[i].toLowerCase().includes(qLower)) matches.push({ line: i + 1, text: lines[i].trim() });
           }
+          results.push({ file: path.relative(BASE_DIR, full), path: full, matches });
         } catch {}
       }
     }
@@ -95,11 +131,20 @@ function searchFiles(dir, query, ext = ".md") {
   return results;
 }
 
-// 4b. Load MCP server instructions from skill file (if present) or fallback
+// Show the lines around the first match instead of dumping a whole file
+function excerpt(content, query, before = 2, after = 12) {
+  const lines = content.split(/\r?\n/);
+  const q = query.toLowerCase();
+  const idx = lines.findIndex((l) => l.toLowerCase().includes(q));
+  if (idx === -1) return lines.slice(0, 20).join("\n");
+  return lines.slice(Math.max(0, idx - before), Math.min(lines.length, idx + after)).join("\n");
+}
+
+// Load MCP server instructions: user override in the notes folder, then the packaged skill, then a built-in fallback
 function loadServerInstructions() {
   const candidates = [
     path.join(BASE_DIR, "skills", "codememory", "SKILL.md"),
-    path.join(BASE_DIR, "skills", "SKILL.md"),
+    path.join(PKG_ROOT, "skills", "codememory", "SKILL.md"),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
@@ -112,17 +157,60 @@ function loadServerInstructions() {
   }
   return [
     "CodeMemory Workflow Rules:",
-    "1. Always consult search_memory, lookup_error, get_entry, or get_relationships before fixing bugs or designing features.",
-    "2. After resolving an issue, implementing a feature, or making an architecture decision, prompt the user to log it via log_entry.",
-    "3. Formatting & Safety: Use 4-space indentation for nested sub-bullets, pass clean filenames in files_changed (auto-stripped to backticked basenames), and structure any sql_patch with STEP 1: PRE-CHECK, STEP 2: EXECUTE (explicit transaction + PK filter), and STEP 3: POST-CHECK.",
+    "1. Before fixing a bug or building a feature, consult search_memory, lookup_error, get_entry, or get_relationships.",
+    "2. After the work is verified, PROPOSE what to log and wait for the user's approval. Never call log_entry on your own.",
+    "3. Formatting & Safety: use 4-space indentation for nested sub-bullets, pass clean filenames in files_changed, and structure any sql_patch with STEP 1: PRE-CHECK, STEP 2: EXECUTE (explicit transaction + PK filter), and STEP 3: POST-CHECK.",
   ].join("\n");
 }
 
-// 5. Initialize MCP Server
+// Pick the next entry id: a real tracker id when given, otherwise 1, 2, 3...
+function resolveEntryId(rawId) {
+  if (rawId !== undefined && rawId !== null && String(rawId).trim() !== "") {
+    const id = sanitizeId(rawId);
+    if (!id) throw new Error(`Invalid id "${rawId}". Use letters, numbers, dots, dashes or underscores.`);
+    return { id, auto: false, n: 0 };
+  }
+  let n = Number(config.lastAutoId) || 0;
+  do {
+    n++;
+  } while (fs.existsSync(path.join(BASE_DIR, "issues", `${n}.md`)));
+  return { id: String(n), auto: true, n };
+}
+
+const INDEX_HEADER =
+  "# Knowledge Base Index\n\n| ID | Title / Summary | Type | Status / Env | Key Files | Date |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n";
+
+function upsertIndexRow(id, row) {
+  const indexPath = path.join(BASE_DIR, "INDEX.md");
+  const text = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf-8") : INDEX_HEADER;
+  const lines = text.split(/\r?\n/);
+  const marker = `| \`${id}\` |`;
+  const idx = lines.findIndex((l) => l.startsWith(marker));
+  if (idx >= 0) {
+    lines[idx] = row;
+  } else {
+    while (lines.length && lines[lines.length - 1].trim() === "") lines.pop();
+    lines.push(row);
+  }
+  fs.writeFileSync(indexPath, lines.join("\n") + "\n", "utf-8");
+}
+
+function runViewerSync() {
+  const syncScript = path.join(BASE_DIR, ".viewer", "sync.py");
+  if (!fs.existsSync(syncScript)) return;
+  for (const py of ["python3", "python", "py"]) {
+    try {
+      execFileSync(py, [syncScript], { stdio: "ignore", timeout: 60000 });
+      return;
+    } catch {}
+  }
+}
+
+// 4. Initialize MCP Server
 const server = new Server(
   {
     name: "codememory",
-    version: "1.0.0",
+    version: PKG_VERSION,
   },
   {
     capabilities: {
@@ -132,14 +220,14 @@ const server = new Server(
   }
 );
 
-// 6. Define ListTools
+// 5. Define ListTools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: "search_memory",
         description:
-          "Fast keyword and semantic search across all engineering memory (tickets, features, ADRs, playbooks, runbooks, errors, gotchas).",
+          "Fast keyword search across all engineering memory (issues, playbooks, patches, queries, errors, gotchas, architecture).",
         inputSchema: {
           type: "object",
           properties: {
@@ -149,7 +237,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             category: {
               type: "string",
-              enum: ["all", "tickets", "features", "playbooks", "adr", "runbooks", "errors", "gotchas"],
+              enum: ["all", "issues", "playbooks", "patches", "queries", "errors", "gotchas", "architecture"],
               description: "Optional folder/category filter. Defaults to 'all'.",
             },
           },
@@ -159,7 +247,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "lookup_error",
         description:
-          "Search error signatures, exception logs, stack traces, and error codes in errors.md and past incidents.",
+          "Search error signatures, exception logs, stack traces, and error codes in errors.md, gotchas.md and past issues.",
         inputSchema: {
           type: "object",
           properties: {
@@ -174,13 +262,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "get_entry",
         description:
-          "Retrieve a complete ticket, feature, ADR, or playbook note and any associated SQL patches by ID or filename.",
+          "Retrieve a complete logged issue (bug, feature or decision) by its id, plus any attached SQL patch. Also finds playbooks and queries by name.",
         inputSchema: {
           type: "object",
           properties: {
             id: {
               type: "string",
-              description: "Ticket ID (e.g. '001', '281735'), feature ID ('FEAT-001'), or ADR ID ('ADR-001').",
+              description: "Entry id, e.g. '1', '12', '#286705' or 'PROJ-42'.",
             },
           },
           required: ["id"],
@@ -189,7 +277,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "get_relationships",
         description:
-          "Retrieve domain entity models, ER diagrams, foreign key relationships, and synchronization rules.",
+          "Retrieve architecture notes: system flows, ER diagrams, foreign key relationships, and synchronization rules (architecture.md).",
         inputSchema: {
           type: "object",
           properties: {
@@ -218,18 +306,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "log_entry",
         description:
-          "Programmatically log a resolved ticket, feature, or ADR into CodeMemory and update INDEX.md. Follow these formatting rules: use 4-space indentation for nested sub-bullets, pass clean filenames in files_changed (auto-stripped to backticked basenames), and structure any sql_patch with STEP 1: PRE-CHECK, STEP 2: EXECUTE (transaction + explicit PK), and STEP 3: POST-CHECK.",
+          "Log a resolved bug, finished feature, or technical decision into CodeMemory (issues/<id>.md + INDEX.md). ONLY call this after the user has approved what to log. Omit id to auto-number (1, 2, 3...) or pass the real tracker id (#12, 286705, PROJ-42). Formatting rules: 4-space indentation for nested sub-bullets, clean filenames in files_changed (auto-stripped to backticked basenames), and any sql_patch must use STEP 1: PRE-CHECK, STEP 2: EXECUTE (transaction + explicit PK), STEP 3: POST-CHECK.",
         inputSchema: {
           type: "object",
           properties: {
             type: {
               type: "string",
-              enum: ["ticket", "feature", "adr"],
+              enum: ["bug", "feature", "decision"],
               description: "Entry type.",
             },
             id: {
               type: "string",
-              description: "ID (e.g. '002', 'FEAT-002', 'ADR-002').",
+              description:
+                "Optional. Real tracker id (e.g. '12', '#286705', 'PROJ-42'). Leave empty to auto-number 1, 2, 3...",
             },
             title: {
               type: "string",
@@ -237,15 +326,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             status_or_env: {
               type: "string",
-              description: "Environment (e.g. 'PROD', 'STG') or Status (e.g. 'Completed', 'Accepted').",
+              description: "Environment (e.g. 'PROD', 'STG') or status (e.g. 'Completed'). Optional.",
             },
             summary_issue: {
               type: "string",
-              description: "What was the issue or what was the feature goal?",
+              description: "Section 1: what was the issue (bug), the goal (feature), or the question (decision)?",
             },
             solution: {
               type: "string",
-              description: "How was it fixed or built?",
+              description: "Section 2: how was it fixed or built, or what was chosen?",
             },
             files_changed: {
               type: "array",
@@ -260,21 +349,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             learnings: {
               type: "array",
               items: { type: "string" },
-              description: "Key realizations, trade-offs, or gotchas learned.",
+              description: "Section 3: key realizations, trade-offs, or gotchas learned. Use 'Label: detail' format.",
             },
             branch: {
               type: "string",
               description: "Optional Git branch name.",
             },
+            overwrite: {
+              type: "boolean",
+              description: "Set true only to replace an existing entry with the same id.",
+            },
           },
-          required: ["type", "id", "title", "summary_issue", "solution"],
+          required: ["type", "title", "summary_issue", "solution"],
         },
       },
     ],
   };
 });
 
-// 7. Handle CallTool
+// 6. Handle CallTool
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -282,14 +375,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "search_memory") {
       const query = args.query;
       const cat = args.category || "all";
-      let searchDir = BASE_DIR;
+      const fileCats = { errors: "errors.md", gotchas: "gotchas.md", architecture: "architecture.md" };
+      let results;
 
-      if (cat !== "all") {
-        const candidate = path.join(BASE_DIR, cat);
-        if (fs.existsSync(candidate)) searchDir = candidate;
+      if (cat === "all") {
+        results = searchFiles(BASE_DIR, query, { exts: [".md", ".sql"] });
+      } else if (["issues", "playbooks", "queries"].includes(cat)) {
+        results = searchFiles(path.join(BASE_DIR, cat), query);
+      } else if (cat === "patches") {
+        results = searchFiles(path.join(BASE_DIR, "patches"), query, { exts: [".sql", ".md"] });
+      } else if (fileCats[cat]) {
+        const target = path.join(BASE_DIR, fileCats[cat]);
+        results = searchFiles(BASE_DIR, query, { filter: (full) => full === target });
+      } else {
+        results = [];
       }
 
-      const results = searchFiles(searchDir, query);
       if (results.length === 0) {
         return {
           content: [{ type: "text", text: `No results found for "${query}" in category: ${cat}.` }],
@@ -309,28 +410,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (name === "lookup_error") {
       const q = args.error_query;
-      const errorsFile = path.join(BASE_DIR, "errors.md");
-      const gotchasFile = path.join(BASE_DIR, "gotchas.md");
-
-      let hits = [];
-      if (fs.existsSync(errorsFile)) {
-        const hitsErrors = searchFiles(path.dirname(errorsFile), q);
-        hits.push(...hitsErrors.filter((h) => h.file === "errors.md" || h.file === "gotchas.md"));
+      const hits = [];
+      for (const f of ["errors.md", "gotchas.md"]) {
+        const full = path.join(BASE_DIR, f);
+        if (fs.existsSync(full)) hits.push(...searchFiles(BASE_DIR, q, { filter: (p) => p === full }));
       }
-
-      // Also search past tickets
-      const ticketDir = path.join(BASE_DIR, "tickets");
-      if (fs.existsSync(ticketDir)) {
-        const ticketHits = searchFiles(ticketDir, q);
-        hits.push(...ticketHits);
-      }
+      hits.push(...searchFiles(path.join(BASE_DIR, "issues"), q));
 
       if (hits.length === 0) {
         return {
           content: [
             {
               type: "text",
-              text: `No recorded solutions found in errors.md or past tickets for: "${q}". Consider adding this error to errors.md once resolved!`,
+              text: `No recorded solutions found in errors.md, gotchas.md or past issues for: "${q}". Once this is resolved, propose adding it to errors.md.`,
             },
           ],
         };
@@ -339,52 +431,49 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       let text = `Found error records matching "${q}":\n\n`;
       for (const h of hits.slice(0, 5)) {
         const content = fs.readFileSync(h.path, "utf-8");
-        text += `--- [${h.file}] ---\n${content.slice(0, 1500)}\n\n`;
+        text += `--- [${h.file}] ---\n${excerpt(content, q)}\n\n`;
       }
       return { content: [{ type: "text", text }] };
     }
 
     if (name === "get_entry") {
-      const id = String(args.id).trim();
-      const searchDirs = ["tickets", "features", "adr", "playbooks", "runbooks"];
+      const id = sanitizeId(String(args.id));
+      const lower = id.toLowerCase();
       let foundPath = null;
 
-      for (const d of searchDirs) {
+      for (const d of ["issues", "playbooks", "queries"]) {
         const targetDir = path.join(BASE_DIR, d);
-        if (fs.existsSync(targetDir)) {
-          const files = fs.readdirSync(targetDir);
-          const match = files.find(
-            (f) =>
-              f.toLowerCase().startsWith(id.toLowerCase()) ||
-              f.toLowerCase().includes(id.toLowerCase())
-          );
-          if (match) {
-            foundPath = path.join(targetDir, match);
-            break;
-          }
+        if (!id || !fs.existsSync(targetDir)) continue;
+        const files = fs.readdirSync(targetDir).filter((f) => f.toLowerCase().endsWith(".md"));
+        let match = files.find((f) => f.toLowerCase() === `${lower}.md`);
+        if (!match) {
+          match = files.find((f) => f.toLowerCase().startsWith(`${lower}-`) || f.toLowerCase().startsWith(`${lower}_`));
+        }
+        if (!match && d !== "issues") match = files.find((f) => f.toLowerCase().includes(lower));
+        if (match) {
+          foundPath = path.join(targetDir, match);
+          break;
         }
       }
 
       if (!foundPath) {
         return {
-          content: [{ type: "text", text: `Entry with ID "${id}" was not found in CodeMemory.` }],
+          content: [{ type: "text", text: `Entry with ID "${args.id}" was not found in CodeMemory.` }],
         };
       }
 
       let content = fs.readFileSync(foundPath, "utf-8");
 
-      // Check for attached patch
       const patchDir = path.join(BASE_DIR, "patches");
       if (fs.existsSync(patchDir)) {
         const patchFiles = fs.readdirSync(patchDir, { recursive: true });
-        const patchMatch = patchFiles.find((p) => typeof p === "string" && p.includes(id));
+        const patchMatch = patchFiles.find(
+          (p) => typeof p === "string" && p.toLowerCase().endsWith(".sql") && path.basename(p).toLowerCase().startsWith(`${lower}_`)
+        );
         if (patchMatch) {
           const fullPatch = path.join(patchDir, patchMatch);
           if (fs.existsSync(fullPatch) && fs.statSync(fullPatch).isFile()) {
-            content += `\n\n---\n### Attached SQL Patch (${patchMatch}):\n\`\`\`sql\n${fs.readFileSync(
-              fullPatch,
-              "utf-8"
-            )}\n\`\`\``;
+            content += `\n\n---\n### Attached SQL Patch (${patchMatch}):\n\`\`\`sql\n${fs.readFileSync(fullPatch, "utf-8")}\n\`\`\``;
           }
         }
       }
@@ -393,30 +482,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === "get_relationships") {
-      const relPath = path.join(BASE_DIR, "relationships.md");
-      const archPath = path.join(BASE_DIR, "architecture.md");
-
       let content = "";
-      if (fs.existsSync(relPath)) content += fs.readFileSync(relPath, "utf-8") + "\n\n";
-      if (fs.existsSync(archPath)) content += fs.readFileSync(archPath, "utf-8") + "\n\n";
+      for (const f of ["architecture.md", "relationships.md"]) {
+        const full = path.join(BASE_DIR, f);
+        if (fs.existsSync(full)) content += fs.readFileSync(full, "utf-8") + "\n\n";
+      }
 
       if (!content) {
         return {
-          content: [
-            {
-              type: "text",
-              text: "No relationships.md or architecture.md file found in this CodeMemory repository.",
-            },
-          ],
+          content: [{ type: "text", text: "No architecture.md file found in this CodeMemory folder." }],
         };
       }
 
       if (args.keyword) {
         const q = args.keyword.toLowerCase();
-        const sections = content.split("##");
+        const sections = content.split(/\r?\n(?=##\s)/);
         const matching = sections.filter((s) => s.toLowerCase().includes(q));
         if (matching.length > 0) {
-          return { content: [{ type: "text", text: "## " + matching.join("\n## ") }] };
+          return { content: [{ type: "text", text: matching.join("\n\n") }] };
         }
       }
 
@@ -445,145 +528,103 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "log_entry") {
       const {
         type,
-        id,
         title,
-        status_or_env = "PROD",
+        status_or_env = "N/A",
         summary_issue,
         solution,
         files_changed = [],
         sql_patch,
         learnings = [],
-        branch = "main",
+        branch = "N/A",
+        overwrite = false,
       } = args;
 
-      // 1. Sanitize files changed: clean basename wrapped in backticks, 4 spaces indent
-      const filesList = Array.isArray(files_changed) ? files_changed : [files_changed];
-      const cleanedFiles = filesList.map(cleanFileBadge);
+      const entryType = normalizeType(type);
+      const cleanTitle = sanitizeTitle(title);
+      const { id, auto, n } = resolveEntryId(args.id);
 
-      let filesBlock = "";
-      if (cleanedFiles.length > 0) {
-        filesBlock = `* **Files changed:**\n` + cleanedFiles.map((f) => `    * ${f}`).join("\n");
-      } else {
-        filesBlock = `* **Files changed:** None (configuration or patch only).`;
+      const issuesDir = path.join(BASE_DIR, "issues");
+      const notePath = path.join(issuesDir, `${id}.md`);
+      if (fs.existsSync(notePath) && !overwrite) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Entry "${id}" already exists (${notePath}). Omit id to auto-number, pick another id, or pass overwrite=true to replace it.`,
+            },
+          ],
+        };
       }
 
-      // 2. Handle patch
-      let patchRef = "None (code fix only).";
+      // 1. Files changed: clean basename wrapped in backticks, 4 spaces indent
+      const filesList = Array.isArray(files_changed) ? files_changed : [files_changed];
+      const cleanedFiles = filesList.filter(Boolean).map(cleanFileBadge);
+      const filesBlock =
+        cleanedFiles.length > 0
+          ? `* **Files changed:**\n` + cleanedFiles.map((f) => `    * ${f}`).join("\n")
+          : `* **Files changed:** None (configuration or patch only).`;
+
+      // 2. Optional SQL patch
+      let patchLine = "";
       if (sql_patch && sql_patch.trim().length > 0) {
         const patchesDir = path.join(BASE_DIR, "patches");
         fs.mkdirSync(patchesDir, { recursive: true });
         const patchFileName = `${id}_patch.sql`;
-        const patchFilePath = path.join(patchesDir, patchFileName);
-        fs.writeFileSync(patchFilePath, sql_patch.trim() + "\n", "utf-8");
-        patchRef = `[\`patches/${patchFileName}\`](../patches/${patchFileName})`;
+        fs.writeFileSync(path.join(patchesDir, patchFileName), sql_patch.trim() + "\n", "utf-8");
+        patchLine = `\n* **SQL Patch:** [\`patches/${patchFileName}\`](../patches/${patchFileName})`;
       }
 
-      // 3. Format learnings
-      const learnList = Array.isArray(learnings) ? learnings : [learnings];
+      // 3. Learnings
+      const learnList = (Array.isArray(learnings) ? learnings : [learnings]).filter(Boolean);
       const learnBlock =
         learnList.length > 0
           ? learnList
               .map((l) => {
-                const idx = l.indexOf(":");
-                if (idx === -1) return `* **Learning:** ${l.trim()}`;
-                const label = l.slice(0, idx).trim() || "Learning";
-                const detail = l.slice(idx + 1).trim();
+                const idx = String(l).indexOf(":");
+                if (idx === -1) return `* **Learning:** ${String(l).trim()}`;
+                const label = String(l).slice(0, idx).trim() || "Learning";
+                const detail = String(l).slice(idx + 1).trim();
                 return `* **${label}:** ${detail}`;
               })
               .join("\n")
-          : `* Documented fix for future reference.`;
+          : `* Documented for future reference.`;
 
-      // 4. Build note content
-      let noteContent = "";
-      let targetSubdir = "tickets";
-      let headerLabel = type === "ticket" ? "Environment" : "Status";
-
-      const cleanIssue = sanitizeMarkdownLists(summary_issue);
-      const cleanSolution = sanitizeMarkdownLists(solution);
-
-      if (type === "feature") {
-        targetSubdir = "features";
-        noteContent = `# ${id} - ${title}
-**${headerLabel}:** ${status_or_env} | **Branch:** \`${branch}\`
-
-### 1. What was the goal?
-${cleanIssue}
-
-### 2. How did we build it?
-${cleanSolution}
-
-${filesBlock}
-* **Patch / Migration:** ${patchRef}
-
-### 3. What did we realize & trade-offs?
-${learnBlock}
-`;
-      } else if (type === "adr") {
-        targetSubdir = "adr";
-        noteContent = `# ${id}: ${title}
-
-* **Status:** ${status_or_env}
-* **Date:** ${new Date().toISOString().split("T")[0]}
-
-## Context and Problem Statement
-${cleanIssue}
-
-## Decision Outcome
-${cleanSolution}
-
-### Consequences & Trade-offs
-${learnBlock}
-`;
-      } else {
-        // Ticket mode (default)
-        targetSubdir = "tickets";
-        noteContent = `# ${id} - ${title}
-**${headerLabel}:** ${status_or_env} | **Branch:** \`${branch}\`
+      // 4. Note (same 3 sections for bugs, features and decisions)
+      const noteContent = `# ${id} - ${cleanTitle}
+**Type:** ${entryType} | **Env/Status:** ${status_or_env} | **Branch:** \`${branch}\`
 
 ### 1. What was the issue?
-${cleanIssue}
+${sanitizeMarkdownLists(summary_issue)}
 
 ### 2. How did I fix it?
-${cleanSolution}
+${sanitizeMarkdownLists(solution)}
 
-${filesBlock}
-* **SQL Patch:** ${patchRef}
+${filesBlock}${patchLine}
 
 ### 3. What did I realize?
 ${learnBlock}
 `;
-      }
-
-      // 5. Write note file
-      const dirPath = path.join(BASE_DIR, targetSubdir);
-      fs.mkdirSync(dirPath, { recursive: true });
-      const notePath = path.join(dirPath, `${id}.md`);
+      fs.mkdirSync(issuesDir, { recursive: true });
       fs.writeFileSync(notePath, noteContent, "utf-8");
 
-      // 6. Update INDEX.md
-      const indexPath = path.join(BASE_DIR, "INDEX.md");
-      if (fs.existsSync(indexPath)) {
-        const today = new Date().toISOString().split("T")[0];
-        const keyFilesDisplay = cleanedFiles.slice(0, 2).join(", ") || "N/A";
-        const catName = type.charAt(0).toUpperCase() + type.slice(1);
-        const indexRow = `| \`${id}\` | ${title} | ${catName} | ${status_or_env} | ${keyFilesDisplay} | ${today} |\n`;
-        fs.appendFileSync(indexPath, indexRow, "utf-8");
-      }
+      // 5. INDEX.md (insert or replace the row for this id)
+      const today = new Date().toISOString().split("T")[0];
+      const keyFiles = cleanedFiles.slice(0, 2).join(", ") || "N/A";
+      upsertIndexRow(id, `| \`${id}\` | ${cleanTitle} | ${entryType} | ${status_or_env} | ${keyFiles} | ${today} |`);
 
-      // 7. Auto-sync viewer if present
-      const syncScript = path.join(BASE_DIR, ".viewer", "sync.py");
-      if (fs.existsSync(syncScript)) {
-        try {
-          execSync(`python "${syncScript}"`, { stdio: "ignore" });
-        } catch {}
-      }
+      // 6. Remember the auto-number counter
+      if (auto) saveConfig({ lastAutoId: n });
+
+      // 7. Refresh the Book Reader docs if present
+      runViewerSync();
 
       return {
         content: [
           {
             type: "text",
-            text: `[OK] Successfully logged ${type} note "${id}" into: ${notePath}\n- Updated INDEX.md\n- Formatted files changed cleanly with backticks and 4-space indentation.\n${
-              sql_patch ? `- Saved SQL patch into patches/${id}_patch.sql` : ""
+            text: `[OK] Logged ${entryType.toLowerCase()} "${id}"${auto ? " (auto-numbered)" : ""} into: ${notePath}\n- Updated INDEX.md\n- Formatted files changed cleanly with backticks and 4-space indentation.${
+              sql_patch ? `\n- Saved SQL patch into patches/${id}_patch.sql` : ""
             }`,
           },
         ],
@@ -599,7 +640,7 @@ ${learnBlock}
   }
 });
 
-// 8. Start server over stdio
+// 7. Start server over stdio
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

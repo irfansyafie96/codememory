@@ -14,6 +14,21 @@ const ROOT_DIR = path.resolve(__dirname, "..");
 const CLI_PATH = path.join(ROOT_DIR, "bin", "cli.js");
 const SERVER_PATH = path.join(ROOT_DIR, "src", "index.js");
 
+function runInit(cliArgs, env = {}) {
+  return execFileSync(process.execPath, [CLI_PATH, "init", ...cliArgs], {
+    stdio: "pipe",
+    env: { ...process.env, ...env },
+  });
+}
+
+function read(...parts) {
+  return fs.readFileSync(path.join(...parts), "utf-8");
+}
+
+function exists(...parts) {
+  return fs.existsSync(path.join(...parts));
+}
+
 /** Detect a working Python interpreter across Linux, macOS, and Windows. */
 function detectPython() {
   for (const cmd of ["python3", "python", "py"]) {
@@ -29,13 +44,15 @@ function detectPython() {
   return null;
 }
 
-describe("CodeMemory end-to-end suite", () => {
+describe("CodeMemory v2 end-to-end suite", () => {
   let tmpRoot;
-  let hybridDir;
+  let notesDir;
+  let demoDir;
 
   before(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codememory-test-"));
-    hybridDir = path.join(tmpRoot, "hybrid-repo");
+    notesDir = path.join(tmpRoot, "notes");
+    demoDir = path.join(tmpRoot, "demo");
   });
 
   after(() => {
@@ -44,88 +61,117 @@ describe("CodeMemory end-to-end suite", () => {
     }
   });
 
-  it("initializes hybrid, ticket, and project modes cleanly via CLI", () => {
-    const modes = ["hybrid", "ticket", "project"];
-    const commonFiles = [
-      "codememory.config.json",
+  it("scaffolds one clean unified layout (legacy --type ignored, nothing installed outside)", () => {
+    runInit(["--dir", notesDir, "--type", "hybrid"]);
+
+    const cfg = JSON.parse(read(notesDir, "codememory.config.json"));
+    assert.equal(cfg.viewerPort, 8000);
+    assert.equal(cfg.lastAutoId, 0);
+    assert.equal(cfg.type, undefined);
+
+    for (const rel of [
       "INDEX.md",
       "README.md",
       "errors.md",
       "gotchas.md",
-      ".cursorrules",
-      "CLAUDE.md",
-      path.join("skills", "codememory", "SKILL.md"),
+      "architecture.md",
+      path.join("issues", ".gitkeep"),
+      path.join("playbooks", ".gitkeep"),
       path.join(".viewer", "sync.py"),
       path.join(".viewer", "mkdocs.base.yml"),
       "open-book.bat",
       "open-book.sh",
-    ];
-
-    for (const mode of modes) {
-      const targetDir = mode === "hybrid" ? hybridDir : path.join(tmpRoot, `${mode}-repo`);
-      execFileSync(process.execPath, [CLI_PATH, "init", "--dir", targetDir, "--type", mode], {
-        stdio: "pipe",
-      });
-
-      const cfg = JSON.parse(
-        fs.readFileSync(path.join(targetDir, "codememory.config.json"), "utf-8")
-      );
-      assert.equal(cfg.type, mode);
-
-      for (const rel of commonFiles) {
-        assert.ok(fs.existsSync(path.join(targetDir, rel)), `Missing ${rel} in ${mode} mode`);
-      }
-
-      // Default init should scaffold clean skeleton without dummy boilerplate
-      assert.ok(!fs.existsSync(path.join(targetDir, "tickets", "001-example.md")));
-      assert.ok(!fs.existsSync(path.join(targetDir, "features", "FEAT-001-auth.md")));
-      assert.ok(!fs.existsSync(path.join(targetDir, "adr", "ADR-001-database-selection.md")));
-      assert.ok(!fs.existsSync(path.join(targetDir, "patches", "001_example_patch.sql")));
-
-      const indexText = fs.readFileSync(path.join(targetDir, "INDEX.md"), "utf-8");
-      assert.ok(!indexText.includes("`001`") && !indexText.includes("`FEAT-001`"));
-
-      const errorsText = fs.readFileSync(path.join(targetDir, "errors.md"), "utf-8");
-      assert.ok(!errorsText.includes("ORA-00001"));
-
-      if (mode === "ticket" || mode === "hybrid") {
-        assert.ok(fs.existsSync(path.join(targetDir, "tickets")));
-        assert.ok(fs.existsSync(path.join(targetDir, "patches")));
-        assert.ok(fs.existsSync(path.join(targetDir, "playbooks")));
-        assert.ok(fs.existsSync(path.join(targetDir, "relationships.md")));
-      }
-
-      if (mode === "project" || mode === "hybrid") {
-        assert.ok(fs.existsSync(path.join(targetDir, "features")));
-        assert.ok(fs.existsSync(path.join(targetDir, "adr")));
-        assert.ok(fs.existsSync(path.join(targetDir, "runbooks")));
-        assert.ok(fs.existsSync(path.join(targetDir, "architecture.md")));
-      }
+    ]) {
+      assert.ok(exists(notesDir, rel), `Missing ${rel}`);
     }
 
-    // Opt-in --examples flag should populate sample demo files
-    const demoDir = path.join(tmpRoot, "demo-repo");
-    execFileSync(
-      process.execPath,
-      [CLI_PATH, "init", "--dir", demoDir, "--type", "hybrid", "--examples"],
-      { stdio: "pipe" }
-    );
-    assert.ok(fs.existsSync(path.join(demoDir, "tickets", "001-example.md")));
-    assert.ok(fs.existsSync(path.join(demoDir, "patches", "001_example_patch.sql")));
-    assert.ok(fs.existsSync(path.join(demoDir, "features", "FEAT-001-auth.md")));
-    assert.ok(fs.existsSync(path.join(demoDir, "adr", "ADR-001-database-selection.md")));
-    assert.ok(fs.readFileSync(path.join(demoDir, "relationships.md"), "utf-8").includes("erDiagram"));
+    // No v1 folders, no AI rule files inside the notes folder, optional folders hidden until used
+    for (const rel of ["tickets", "features", "adr", "runbooks", "relationships.md", "skills", ".cursorrules", "CLAUDE.md", "patches", "queries"]) {
+      assert.ok(!exists(notesDir, rel), `Unexpected ${rel}`);
+    }
+    assert.ok(!read(notesDir, "INDEX.md").includes("`1`"), "Clean INDEX should have no sample rows");
+    assert.ok(!read(notesDir, "errors.md").includes("ORA-00001"), "Clean errors.md should have no sample content");
+    assert.ok(read(notesDir, "open-book.bat").includes("port.txt"));
+
+    // Custom port
+    const portDir = path.join(tmpRoot, "port-notes");
+    runInit(["--dir", portDir, "--port", "8003"]);
+    assert.equal(JSON.parse(read(portDir, "codememory.config.json")).viewerPort, 8003);
+
+    // Sample notes are opt-in
+    runInit(["--dir", demoDir, "--examples"]);
+    for (const rel of [
+      path.join("issues", "1.md"),
+      path.join("patches", "1_patch.sql"),
+      path.join("playbooks", "example-playbook.md"),
+      path.join("queries", "example-queries.md"),
+    ]) {
+      assert.ok(exists(demoDir, rel), `Missing sample ${rel}`);
+    }
+    assert.ok(read(demoDir, "architecture.md").includes("mermaid"));
+    assert.equal(JSON.parse(read(demoDir, "codememory.config.json")).lastAutoId, 1);
   });
 
-  it("exposes MCP tools over stdio and executes search, lookup, relationships, and log_entry", async () => {
+  it("installs the skill for chosen AI clients (project and global scope)", () => {
+    const projectRoot = path.join(tmpRoot, "project");
+    fs.mkdirSync(projectRoot, { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, "CLAUDE.md"), "# My Claude rules\n", "utf-8");
+
+    const clientNotes = path.join(tmpRoot, "client-notes");
+    const projectArgs = [
+      "--dir", clientNotes,
+      "--clients", "claude,cursor,codex,antigravity",
+      "--scope", "project",
+      "--project-root", projectRoot,
+    ];
+    runInit(projectArgs);
+
+    for (const rel of [
+      path.join(".claude", "skills", "codememory", "SKILL.md"),
+      path.join(".cursor", "skills", "codememory", "SKILL.md"),
+      path.join(".agents", "skills", "codememory", "SKILL.md"),
+      path.join(".cursor", "rules", "codememory.mdc"),
+      "AGENTS.md",
+    ]) {
+      assert.ok(exists(projectRoot, rel), `Missing ${rel}`);
+    }
+    assert.ok(read(projectRoot, ".cursor", "rules", "codememory.mdc").includes("alwaysApply: true"));
+    assert.ok(read(projectRoot, ".claude", "skills", "codememory", "SKILL.md").includes("name: codememory"));
+
+    const claudeMd = read(projectRoot, "CLAUDE.md");
+    assert.ok(claudeMd.includes("# My Claude rules"), "Existing CLAUDE.md content must be preserved");
+    assert.ok(claudeMd.includes("codememory:start"));
+
+    // Re-running must not duplicate pointer blocks
+    runInit(projectArgs);
+    assert.equal(read(projectRoot, "CLAUDE.md").split("codememory:start").length - 1, 1);
+    assert.equal(read(projectRoot, "AGENTS.md").split("codememory:start").length - 1, 1);
+
+    // Global scope writes into the (fake) home folder only, and never touches global rule files
+    const fakeHome = path.join(tmpRoot, "home");
+    runInit(["--dir", path.join(tmpRoot, "global-notes"), "--clients", "all", "--scope", "global"], {
+      CODEMEMORY_HOME: fakeHome,
+    });
+    for (const rel of [
+      path.join(".gemini", "config", "skills", "codememory", "SKILL.md"),
+      path.join(".claude", "skills", "codememory", "SKILL.md"),
+      path.join(".cursor", "skills", "codememory", "SKILL.md"),
+      path.join(".codex", "skills", "codememory", "SKILL.md"),
+    ]) {
+      assert.ok(exists(fakeHome, rel), `Missing global ${rel}`);
+    }
+    assert.ok(!exists(fakeHome, "CLAUDE.md"));
+  });
+
+  it("serves MCP tools, auto-numbers entries, and protects existing notes", async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
-      args: [SERVER_PATH, "--dir", hybridDir],
+      args: [SERVER_PATH, "--dir", notesDir],
     });
-    const client = new Client(
-      { name: "codememory-test-client", version: "1.0.0" },
-      { capabilities: {} }
-    );
+    const client = new Client({ name: "codememory-test-client", version: "1.0.0" }, { capabilities: {} });
+
+    const call = (name, args) => client.callTool({ name, arguments: args });
+    const text = (res) => res.content[0].text;
 
     try {
       await client.connect(transport);
@@ -134,115 +180,130 @@ describe("CodeMemory end-to-end suite", () => {
       assert.ok(
         typeof instructions === "string" &&
           instructions.includes("CodeMemory") &&
-          instructions.includes("lookup_error"),
-        "MCP server should expose instructions with CodeMemory workflow rules"
+          instructions.includes("lookup_error") &&
+          instructions.includes("approved"),
+        "MCP instructions should carry the propose-then-approve workflow"
       );
 
       const { tools } = await client.listTools();
       const toolNames = tools.map((t) => t.name);
-      for (const expected of [
-        "search_memory",
-        "lookup_error",
-        "get_entry",
-        "get_relationships",
-        "get_codemap",
-        "log_entry",
-      ]) {
+      for (const expected of ["search_memory", "lookup_error", "get_entry", "get_relationships", "get_codemap", "log_entry"]) {
         assert.ok(toolNames.includes(expected), `Missing MCP tool: ${expected}`);
       }
 
-      const searchRes = await client.callTool({
-        name: "search_memory",
-        arguments: { query: "CodeMemory" },
+      // 1. No id -> auto-number 1
+      const first = await call("log_entry", {
+        type: "bug",
+        title: "First fix",
+        summary_issue: "Test issue\n  * sub item",
+        solution: "Fixed cleanly",
+        files_changed: ["src/service/OrderService.java"],
+        sql_patch: "SELECT 1;",
+        learnings: ["Port note: Viewer runs on http://localhost:8003 cleanly"],
       });
-      assert.ok(searchRes.content[0].text.includes("Found"));
+      assert.ok(!first.isError, text(first));
+      const note1 = read(notesDir, "issues", "1.md");
+      assert.ok(note1.includes("**Type:** Bug"));
+      assert.ok(note1.includes("`OrderService.java`"), "Should clean path to basename badge");
+      assert.ok(note1.includes("    * sub item"), "Should sanitize 2-space indent to 4 spaces");
+      assert.ok(note1.includes("http://localhost:8003 cleanly"), "Should preserve colons inside learnings");
+      assert.ok(note1.includes("patches/1_patch.sql"));
+      assert.ok(exists(notesDir, "patches", "1_patch.sql"));
+      assert.equal(JSON.parse(read(notesDir, "codememory.config.json")).lastAutoId, 1);
 
-      const errRes = await client.callTool({
-        name: "lookup_error",
-        arguments: { error_query: "Error" },
+      // 2. Next auto-number is 2 (pipes in titles are sanitized for the INDEX table)
+      await call("log_entry", {
+        type: "feature",
+        title: "Second | piped",
+        summary_issue: "Goal",
+        solution: "Built",
       });
-      assert.ok(errRes.content[0].text.length > 0);
+      assert.ok(exists(notesDir, "issues", "2.md"));
 
-      const relRes = await client.callTool({
-        name: "get_relationships",
-        arguments: {},
+      // 3. Real tracker ids are used as-is (leading # stripped)
+      await call("log_entry", {
+        type: "decision",
+        id: "#286705",
+        title: "Pick the queue library",
+        summary_issue: "Which library?",
+        solution: "Chose the simplest one",
       });
-      assert.ok(relRes.content[0].text.includes("Domain Entity & Database Relationships"));
+      assert.ok(exists(notesDir, "issues", "286705.md"));
 
-      await client.callTool({
-        name: "log_entry",
-        arguments: {
-          type: "ticket",
-          id: "999",
-          title: "Test Race Condition",
-          status_or_env: "STG",
-          summary_issue: "Test issue\n  * sub item",
-          solution: "Fixed cleanly",
-          files_changed: ["src/service/OrderService.java"],
-          sql_patch: "SELECT 1;",
-          learnings: ["Port note: Viewer runs on http://localhost:8003 cleanly"],
-        },
-      });
+      // 4. Auto-numbering continues from the counter, not from the tracker id
+      await call("log_entry", { type: "bug", title: "Third", summary_issue: "x", solution: "y" });
+      assert.ok(exists(notesDir, "issues", "3.md"));
+      assert.ok(!exists(notesDir, "issues", "286706.md"));
 
-      const loggedNotePath = path.join(hybridDir, "tickets", "999.md");
-      assert.ok(fs.existsSync(loggedNotePath), "tickets/999.md should exist");
-      const loggedNote = fs.readFileSync(loggedNotePath, "utf-8");
-      assert.ok(loggedNote.includes("`OrderService.java`"), "Should clean path to basename badge");
-      assert.ok(loggedNote.includes("    * sub item"), "Should sanitize 2-space indent to 4 spaces");
-      assert.ok(
-        loggedNote.includes("http://localhost:8003 cleanly"),
-        "Should preserve colons inside learnings text"
-      );
+      // 5. Existing entries are protected unless overwrite=true
+      const clash = await call("log_entry", { type: "bug", id: "2", title: "Clash", summary_issue: "x", solution: "y" });
+      assert.equal(clash.isError, true);
+      assert.ok(read(notesDir, "issues", "2.md").includes("Second / piped"));
+      await call("log_entry", { type: "bug", id: "2", title: "Replaced", summary_issue: "x", solution: "y", overwrite: true });
+      assert.ok(read(notesDir, "issues", "2.md").includes("Replaced"));
 
-      assert.ok(
-        fs.existsSync(path.join(hybridDir, "patches", "999_patch.sql")),
-        "patches/999_patch.sql should exist"
-      );
+      // 6. Ids cannot escape the issues folder
+      await call("log_entry", { type: "bug", id: "../../evil", title: "Evil", summary_issue: "x", solution: "y" });
+      assert.ok(!exists(tmpRoot, "evil.md"));
+      assert.ok(exists(notesDir, "issues", "evil.md"));
 
-      const indexContent = fs.readFileSync(path.join(hybridDir, "INDEX.md"), "utf-8");
-      assert.ok(indexContent.includes("`999`"), "INDEX.md should contain entry 999");
+      // INDEX.md has one row per entry
+      const index = read(notesDir, "INDEX.md");
+      for (const id of ["1", "2", "3", "286705"]) {
+        assert.ok(index.includes(`| \`${id}\` |`), `INDEX missing ${id}`);
+      }
+      assert.equal(index.split("| `2` |").length - 1, 1, "overwrite must not duplicate the INDEX row");
+      assert.ok(index.includes("| Decision |"));
+
+      // Reading it back
+      const entry1 = text(await call("get_entry", { id: "1" }));
+      assert.ok(entry1.includes("First fix") && entry1.includes("Attached SQL Patch"));
+      assert.ok(text(await call("get_entry", { id: "#286705" })).includes("Pick the queue library"));
+      assert.ok(text(await call("search_memory", { query: "Fixed cleanly", category: "issues" })).includes("1.md"));
+      assert.ok(text(await call("search_memory", { query: "SELECT 1", category: "patches" })).includes("1_patch.sql"));
+      assert.ok(text(await call("lookup_error", { error_query: "Stack Traces" })).includes("errors.md"));
+      assert.ok(text(await call("get_relationships", {})).includes("System Architecture"));
     } finally {
       await client.close();
     }
   });
 
-  it("syncs viewer docs, generates mkdocs.yml, and converts Mermaid blocks", (t) => {
-    const pythonCmd = detectPython();
-    if (!pythonCmd) {
+  it("builds the Book Reader home, issue tables, nav, and Mermaid blocks", (t) => {
+    const py = detectPython();
+    if (!py) {
       t.skip("Python 3 interpreter not available in PATH");
       return;
     }
 
-    execFileSync(pythonCmd, [path.join(hybridDir, ".viewer", "sync.py")], {
-      stdio: "pipe",
-    });
+    execFileSync(py, [path.join(notesDir, ".viewer", "sync.py")], { stdio: "pipe" });
 
-    assert.ok(fs.existsSync(path.join(hybridDir, ".viewer", "mkdocs.yml")));
-    const mkdocsYml = fs.readFileSync(path.join(hybridDir, ".viewer", "mkdocs.yml"), "utf-8");
-    assert.ok(mkdocsYml.includes("Index: catalog.md"));
-    assert.ok(!mkdocsYml.includes("Index: INDEX.md"));
+    const docs = path.join(notesDir, ".viewer", "docs");
+    const home = read(docs, "index.md");
+    assert.ok(home.includes("## Logged Entries"));
+    assert.ok(home.includes('=== "All (5)"'), "home should list all 5 entries in tabs");
+    assert.ok(home.includes('=== "Decision (1)"'));
+    assert.ok(home.includes("[1](issues/1.md)"));
+    assert.ok(home.indexOf("[1](issues/1.md)") < home.indexOf("[286705](issues/286705.md)"), "ids sorted numerically");
 
-    const syncedIndexPath = path.join(hybridDir, ".viewer", "docs", "index.md");
-    assert.ok(fs.existsSync(syncedIndexPath));
-    const syncedIndex = fs.readFileSync(syncedIndexPath, "utf-8");
-    assert.ok(syncedIndex.includes("CodeMemory"), "index.md should come from README.md");
+    assert.ok(exists(docs, "issues", "1.md"));
+    assert.ok(exists(docs, "issues", "index.md"));
+    assert.ok(read(docs, "patches", "index.md").includes("1_patch.sql"));
+    assert.ok(exists(docs, "how-to-use.md"));
+    assert.ok(read(docs, "issues", "1.md").includes("../patches/1_patch.sql.md"), "patch link points at the book page");
 
-    const syncedCatalogPath = path.join(hybridDir, ".viewer", "docs", "catalog.md");
-    assert.ok(fs.existsSync(syncedCatalogPath), "catalog.md should exist for INDEX.md");
-    const syncedCatalog = fs.readFileSync(syncedCatalogPath, "utf-8");
-    assert.ok(
-      syncedCatalog.includes("# Knowledge Base Index"),
-      "catalog.md should contain INDEX.md content"
-    );
+    const mkdocsYml = read(notesDir, ".viewer", "mkdocs.yml");
+    assert.ok(mkdocsYml.includes("dev_addr: 127.0.0.1:8000"));
+    assert.ok(mkdocsYml.includes("Issues: issues/index.md"));
+    assert.ok(!mkdocsYml.includes("INDEX.md"));
+    assert.equal(read(notesDir, ".viewer", "port.txt"), "8000");
 
-    const demoDir = path.join(tmpRoot, "demo-repo");
-    execFileSync(pythonCmd, [path.join(demoDir, ".viewer", "sync.py")], {
-      stdio: "pipe",
-    });
-    const syncedRelPath = path.join(demoDir, ".viewer", "docs", "relationships.md");
-    assert.ok(fs.existsSync(syncedRelPath));
-    const syncedRel = fs.readFileSync(syncedRelPath, "utf-8");
-    assert.ok(syncedRel.includes('<pre class="mermaid"><code>'));
-    assert.ok(!syncedRel.includes("```mermaid"));
+    // Sample notes: Mermaid fences become <pre class="mermaid">, queries and playbooks get nav entries
+    execFileSync(py, [path.join(demoDir, ".viewer", "sync.py")], { stdio: "pipe" });
+    const demoDocs = path.join(demoDir, ".viewer", "docs");
+    const arch = read(demoDocs, "architecture.md");
+    assert.ok(arch.includes('<pre class="mermaid"><code>'));
+    assert.ok(!arch.includes("```mermaid"));
+    const demoYml = read(demoDir, ".viewer", "mkdocs.yml");
+    assert.ok(demoYml.includes("Queries:") && demoYml.includes("Playbooks:") && demoYml.includes("Patches: patches/index.md"));
   });
 });

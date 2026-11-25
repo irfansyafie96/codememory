@@ -1,5 +1,5 @@
 -- ============================================================================
--- TICKET #[NUMBER]: [SHORT DESCRIPTION OF FIX OR RECOVERY]
+-- ISSUE #[NUMBER]: [SHORT DESCRIPTION OF FIX OR RECOVERY]
 -- Environment      : [PROD / STG / DEV]
 -- Target Identifier: [e.g. ORDER_ID / ACCOUNT_NO / TRANSACTION_REF]
 -- Discrepancy      : [Expected vs Actual / Problem to Solve]
@@ -34,8 +34,8 @@ WHERE id IN ('ORD-100234', 'ORD-100235')
 -- 2. Insert audit log / reconciliation trace
 INSERT INTO example_audit_logs (order_id, action, note, created_at)
 VALUES 
-  ('ORD-100234', 'MANUAL_RECONCILE', 'Resolved via Ticket #[NUMBER]', CURRENT_TIMESTAMP),
-  ('ORD-100235', 'MANUAL_RECONCILE', 'Resolved via Ticket #[NUMBER]', CURRENT_TIMESTAMP);
+  ('ORD-100234', 'MANUAL_RECONCILE', 'Resolved via ISSUE #[NUMBER]', CURRENT_TIMESTAMP),
+  ('ORD-100235', 'MANUAL_RECONCILE', 'Resolved via ISSUE #[NUMBER]', CURRENT_TIMESTAMP);
 -- Expected: 2 rows inserted
 
 COMMIT;

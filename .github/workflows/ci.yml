@@ -43,7 +43,7 @@ jobs:
       - name: Smoke test Book Reader build
         shell: bash
         run: |
-          node ./bin/cli.js init --dir ./ci-smoke --type hybrid
+          node ./bin/cli.js init --dir ./ci-smoke --examples
           python ./ci-smoke/.viewer/sync.py
           python -m mkdocs build -f ./ci-smoke/.viewer/mkdocs.yml -d ./ci-smoke/.viewer/site
           rm -rf ./ci-smoke

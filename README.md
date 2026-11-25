@@ -10,14 +10,14 @@
 
 **Local-first, AI-native engineering memory & Universal Model Context Protocol (MCP) server.**
 
-Stop solving the same bugs twice. Give your AI coding assistants (Antigravity, Cursor, Claude Code, Windsurf) a persistent, local engineering second brain for tickets, architectural decisions (ADRs), and safe production patches.
+Stop solving the same bugs twice. Give your AI coding assistants (Antigravity, Cursor, Claude Code, OpenAI Codex CLI, OpenCode) a persistent, local engineering second brain for bugs, features, design decisions, and safe SQL patches.
 
 ---
 
 ## ⚡ The Problem
 
-1. **AI Context Amnesia:** Every time you start a new chat with an AI assistant, it forgets the subtle race condition you diagnosed last week, the database connection quirks, and why a certain library was chosen.
-2. **Buried Engineering Truths:** Critical architectural decisions and incident post-mortems get lost in closed tickets, Slack channels, or developer heads.
+1. **AI Context Amnesia:** Every time you start a new chat with an AI assistant, it forgets the subtle race condition you diagnosed last week, database quirks, and why a library or pattern was chosen.
+2. **Buried Engineering Truths:** Critical fixes, diagnostic queries, and design trade-offs get lost in closed tickets, chat logs, or developer heads.
 3. **Dangerous Production Patches:** Rushed SQL scripts run against production without pre-verification or explicit transaction controls cause avoidable outages.
 
 ---
@@ -26,58 +26,53 @@ Stop solving the same bugs twice. Give your AI coding assistants (Antigravity, C
 
 `codememory` bridges the gap between your repository and AI coding assistants:
 
-* 🎯 **Dual Mode Setup:** Tailored specifically for **maintenance & bug-fixing teams** (`ticket` mode) or **greenfield product builders** (`project` mode), or both (`hybrid`).
-* 🔌 **Universal MCP Server:** Exposes 6 purpose-built tools (`search_memory`, `lookup_error`, `get_entry`, `log_entry`, `get_relationships`, `get_codemap`) directly to any MCP-compliant AI assistant.
-* 🛡️ **3-Step SQL Patch Standard:** Enforces mandatory `PRE-CHECK`, `EXECUTE`, and `POST-CHECK` verification steps on all database scripts.
-* 📖 **Interactive Book Reader:** Includes a local, searchable web documentation reader powered by MkDocs and forward-compatible with Zensical (2027+).
-* 🔒 **100% Local & Private:** Zero cloud tracking, zero external telemetry. All notes remain plain Markdown files inside your repository.
+* 🎯 **One Unified Layout:** Clean skeleton by default — works for both bug fixing and building features. Empty optional sections (`patches/`, `queries/`) stay hidden in the Book Reader until you use them.
+* 🤝 **Propose-First Logging:** After fixing a bug or finishing a feature, the AI proposes what should be saved and waits for your approval instead of writing files on its own instinct.
+* 🔢 **Auto-Numbering or Real Tracker IDs:** Omit `id` and entries auto-number sequentially (`1`, `2`, `3`...), or pass your real issue/ticket ID (`#12`, `286705`, `PROJ-42`).
+* 🧩 **Multi-Client Skill Installer:** Detects and installs the unified `SKILL.md` into official paths for **Antigravity**, **Claude Code**, **Cursor**, and **OpenAI Codex CLI** (plus delivers rules automatically over MCP `instructions`).
+* 🛡️ **3-Step SQL Patch Standard:** Enforces `PRE-CHECK`, `EXECUTE`, and `POST-CHECK` verification on all database scripts.
+* 📖 **Interactive Book Reader:** Turns your Markdown notes and Mermaid diagrams into a searchable local web book (MkDocs Material, forward-compatible with Zensical 2027+) with a configurable `viewerPort`.
+* 🔒 **100% Local & Private:** Zero cloud tracking, zero external telemetry. Everything stays plain Markdown inside your folder.
 
 ---
 
 ## 🚀 Quick Start
 
-Initialize CodeMemory in your repository in seconds using `npx`:
+Initialize CodeMemory in seconds using `npx`:
 
 ```bash
-# Initialize via NPM:
-npx @irfansyafie/codememory@latest init --type ticket    # For maintenance & bug-fixing projects
-npx @irfansyafie/codememory@latest init --type project   # For greenfield feature development
-npx @irfansyafie/codememory@latest init --type hybrid    # Full suite
+# Interactive setup (asks folder, port, sample notes, and AI tools):
+npx @irfansyafie/codememory@latest init
 
-# Or direct from GitHub (no installation needed):
-npx -y github:irfansyafie96/codememory init --type ticket
+# Non-interactive examples:
+npx @irfansyafie/codememory@latest init --dir ./codememory
+npx @irfansyafie/codememory@latest init --dir ./codememory --port 8003 --examples
+npx @irfansyafie/codememory@latest init --dir ./codememory --clients claude,cursor,codex,antigravity --scope project
+
+# Or direct from GitHub:
+npx -y github:irfansyafie96/codememory init
 ```
 
 ---
 
 ## 📁 What Gets Created?
 
-### 🎟️ Ticket Mode (`--type ticket`)
-Designed for operational excellence, bug fixing, and incident resolution:
-```text
-your-repo/
-├── codememory.config.json    # Project configuration
-├── tickets/                  # 3-part incident records (Issue, Fix, Learnings)
-├── patches/                  # 3-step verification SQL patches
-├── playbooks/                # Step-by-step incident resolution recipes
-├── relationships.md          # Database ER diagrams & synchronization rules
-├── errors.md                 # Server exception signatures & root causes
-├── gotchas.md                # Concurrency traps & architectural edge cases
-└── INDEX.md                  # Quick lookup index table
-```
+One clean unified folder layout (sample content is omitted by default unless `--examples` is passed):
 
-### 🏗️ Project Mode (`--type project`)
-Designed for greenfield development, feature architecture, and system design:
 ```text
-your-repo/
-├── codememory.config.json    # Project configuration
-├── features/                 # 3-part feature docs (Goal, Implementation, Trade-offs)
-├── adr/                      # Architecture Decision Records (Context, Outcome, Consequences)
-├── runbooks/                 # Developer setup, migrations & local workflows
-├── architecture.md           # System topology, data flow sequences & invariants
-├── errors.md                 # Runtime error dictionary
-├── gotchas.md                # Anti-patterns & library traps
-└── INDEX.md                  # Features and ADR index table
+codememory/
+├── codememory.config.json    # Name, viewerPort (default 8000), and auto-number counter
+├── issues/                   # Bugs, features & decisions (3-part layout: Issue -> Fix -> Realized)
+├── playbooks/                # Repeatable step-by-step guides (setup, releases, recurring fixes)
+├── patches/                  # Verified 3-step SQL patches (created when first patch is saved)
+├── queries/                  # Verified diagnostic SELECT queries (created when added)
+├── architecture.md           # System flows, ER diagrams & screen-to-service-to-table code map
+├── errors.md                 # Recurring exceptions, stack traces & verified fixes
+├── gotchas.md                # Subtle traps, environment quirks & key design decisions
+├── INDEX.md                  # Master searchable index table
+├── README.md                 # Local overview ("How to use" page in the Book Reader)
+├── open-book.bat             # Windows Book Reader launcher
+└── open-book.sh              # macOS / Linux Book Reader launcher
 ```
 
 ---
@@ -93,7 +88,7 @@ Add this to your `mcp_config.json`:
   "mcpServers": {
     "codememory": {
       "command": "npx",
-      "args": ["-y", "@irfansyafie/codememory@latest", "--dir", "."]
+      "args": ["-y", "@irfansyafie/codememory@latest", "--dir", "/absolute/path/to/codememory"]
     }
   }
 }
@@ -102,9 +97,7 @@ Add this to your `mcp_config.json`:
 ### Cursor IDE
 1. Open Cursor Settings -> **Features** -> **MCP Servers**.
 2. Click **+ Add New MCP Server**.
-3. Name: `codememory`
-4. Type: `command`
-5. Command: `npx -y @irfansyafie/codememory@latest --dir .`
+3. Name: `codememory` | Type: `command` | Command: `npx -y @irfansyafie/codememory@latest --dir /absolute/path/to/codememory`
 
 ### OpenCode
 Add this to your OpenCode configuration (`opencode.json`):
@@ -133,36 +126,35 @@ Add this to your OpenCode configuration (`opencode.json`):
 
 | Tool | Description |
 | :--- | :--- |
-| `lookup_error(error_query)` | Instantly searches error signatures, stack traces, and exception logs across `errors.md` and past incident notes. |
-| `search_memory(query, category)` | Keyword and semantic search across all tickets, features, ADRs, playbooks, and runbooks. |
-| `get_entry(id)` | Retrieves the complete note and attached SQL patch for a specific ticket (`001`), feature (`FEAT-001`), or ADR (`ADR-001`). |
-| `log_entry(...)` | Programmatically creates a note, formats files changed with clean backticked badges, updates `INDEX.md`, and syncs the documentation book. |
-| `get_relationships(keyword)` | Returns domain entity models, ER diagrams, and multi-table synchronization rules. |
+| `search_memory(query, category)` | Keyword search across `all`, `issues`, `playbooks`, `patches`, `queries`, `errors`, `gotchas`, or `architecture`. |
+| `lookup_error(error_query)` | Searches error signatures, stack traces, and error codes across `errors.md`, `gotchas.md`, and `issues/`. |
+| `get_entry(id)` | Retrieves a logged issue (`1`, `12`, `#286705`, `PROJ-42`) plus any attached SQL patch, or finds playbooks/queries by name. |
+| `log_entry(...)` | Logs an approved `bug`, `feature`, or `decision` into `issues/<id>.md` (auto-numbers `1, 2, 3...` if `id` is omitted), updates `INDEX.md`, cleans file badges, and syncs the Book Reader. |
+| `get_relationships(keyword)` | Returns system flows, ER diagrams, and multi-table synchronization rules from `architecture.md`. |
 | `get_codemap(keyword)` | Searches screen-to-service, controller-to-database, and API mappings. |
 
 ---
 
 ## 📐 The Standards
 
-### 1. The 3-Part Note Architecture
-Every ticket or feature record follows an intuitive 3-part layout:
+### 1. The 3-Part Note Layout
+Bugs, features, and decisions all share one concise 3-part layout:
 ```markdown
-# 001 - Null Pointer Exception in Coupon Calculation
-**Environment:** PROD | **Branch:** `fix/coupon-npe`
+# 1 - Null Pointer Exception in Coupon Calculation
+**Type:** Bug | **Env/Status:** PROD | **Branch:** `fix/issue-1-coupon-npe`
 
-### 1. What was the issue? (or Goal)
+### 1. What was the issue?
 Zero-dollar coupons returned an empty rate object from the upstream service, causing an NPE.
 
-### 2. How did I fix it? (or Built)
+### 2. How did I fix it?
 Added null-safe defensive fallback in `OrderCalculationService.java`.
 
 * **Files changed:**
     * `OrderCalculationService.java`
     * `CouponValidator.java`
-* **Patch / Migration:** None (code fix only).
 
-### 3. What did I realize & trade-offs?
-* Third-party coupon microservice omits the float rate attribute when promo is 100% off.
+### 3. What did I realize?
+* **Missing payload field:** Third-party coupon microservice omits the float rate attribute when promo is 100% off.
 ```
 
 ### 2. The 3-Step SQL Patch Standard
@@ -201,7 +193,7 @@ cd .viewer
 python sync.py
 python -m mkdocs serve
 ```
-Open `http://localhost:8000` to browse your engineering knowledge base with dark/light themes and Mermaid diagram rendering.
+The port is configured via `--port` during `init` or `"viewerPort"` in `codememory.config.json` (default `8000`), so you can run multiple CodeMemory books side by side on different ports.
 
 ---
 
