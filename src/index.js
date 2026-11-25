@@ -33,7 +33,7 @@ const configPath = path.join(BASE_DIR, "codememory.config.json");
 let config = { name: "CodeMemory" };
 if (fs.existsSync(configPath)) {
   try {
-    config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    config = JSON.parse(fs.readFileSync(configPath, "utf-8").replace(/^\uFEFF/, ""));
   } catch (err) {
     console.error("Warning: Failed to parse codememory.config.json:", err.message);
   }

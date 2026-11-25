@@ -57,7 +57,7 @@ def load_config():
     cfg_path = ROOT_DIR / "codememory.config.json"
     if cfg_path.exists():
         try:
-            with open(cfg_path, "r", encoding="utf-8") as f:
+            with open(cfg_path, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             pass

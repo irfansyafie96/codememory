@@ -305,5 +305,21 @@ describe("CodeMemory v2 end-to-end suite", () => {
     assert.ok(!arch.includes("```mermaid"));
     const demoYml = read(demoDir, ".viewer", "mkdocs.yml");
     assert.ok(demoYml.includes("Queries:") && demoYml.includes("Playbooks:") && demoYml.includes("Patches: patches/index.md"));
+
+    // UTF-8 BOM in codememory.config.json (e.g. PowerShell Set-Content -Encoding utf8)
+    const bomDir = path.join(tmpRoot, "bom-notes");
+    runInit(["--dir", bomDir, "--clients", "none"]);
+    fs.writeFileSync(
+      path.join(bomDir, "codememory.config.json"),
+      "\uFEFF" + JSON.stringify({ name: "bom-test", viewerPort: 8004, lastAutoId: 7 }, null, 2),
+      "utf-8"
+    );
+    execFileSync(py, [path.join(bomDir, ".viewer", "sync.py")], { stdio: "pipe" });
+    assert.equal(read(bomDir, ".viewer", "port.txt"), "8004");
+    assert.match(read(bomDir, ".viewer", "mkdocs.yml"), /site_name:\s*['"]?bom-test['"]?/);
+    runInit(["--dir", bomDir, "--clients", "none"]);
+    const bomCfg = JSON.parse(read(bomDir, "codememory.config.json").replace(/^\uFEFF/, ""));
+    assert.equal(bomCfg.viewerPort, 8004);
+    assert.equal(bomCfg.lastAutoId, 7);
   });
 });

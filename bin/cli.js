@@ -457,7 +457,7 @@ async function runInit() {
   const cfgPath = path.join(targetDir, "codememory.config.json");
   let prevConfig = {};
   try {
-    prevConfig = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
+    prevConfig = JSON.parse(fs.readFileSync(cfgPath, "utf-8").replace(/^\uFEFF/, ""));
   } catch {}
 
   // 2. Book Reader port
